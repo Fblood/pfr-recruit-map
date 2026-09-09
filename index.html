@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>PF&amp;R Recruit MDT</title>
+<meta name="description" content="Interactive study terminal for PF&R Recruit Class 26-04 — station map, flashcards, route walkthroughs, and blind-map drills.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css?v=2">
+</head>
+<body>
+
+  <div class="console">
+
+    <header class="topbar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="20" height="20"><path d="M12 2c-.6 2.4-3.2 3.6-3.2 7 0 3 2 5 5 5s5.4-2.4 4.6-6.2c1.6 1.4 2.6 3.6 2.6 6.2 0 4.4-3.8 8-8 8s-8-3.6-8-8c0-5 3.2-7 4-9 .4 1.4 1 2 2 2 .8 0 1-1.6 1-5z" fill="currentColor"/></svg>
+        </span>
+        <div class="brand-text">
+          <p class="brand-eyebrow">PF&amp;R &middot; Recruit Class 26-04</p>
+          <h1>Station MDT</h1>
+        </div>
+      </div>
+      <div class="topbar-right">
+        <span class="clock" id="clock" aria-hidden="true">--:--:--</span>
+        <span class="badge">UNOFFICIAL STUDY TOOL</span>
+      </div>
+    </header>
+
+    <div class="layout">
+
+      <aside class="rail" id="rail">
+
+        <section class="rail-group">
+          <p class="rail-label">Mode</p>
+          <div class="mode-switch" role="tablist" aria-label="Study mode">
+            <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
+            <button class="mode-btn" data-mode="flashcard" role="tab" aria-selected="false">Flashcard</button>
+            <button class="mode-btn" data-mode="route" role="tab" aria-selected="false">Route</button>
+            <button class="mode-btn" data-mode="blind" role="tab" aria-selected="false">Blind Map</button>
+          </div>
+        </section>
+
+        <section class="rail-group" id="routeControls" hidden>
+          <p class="rail-label">Route source</p>
+          <div class="mode-switch mode-switch--sm">
+            <button class="mode-btn is-active" data-route="geographic">Geographic</button>
+            <button class="mode-btn" data-route="numeric">Numeric</button>
+          </div>
+        </section>
+
+        <section class="rail-group">
+          <p class="rail-label">Layers</p>
+          <ul class="layer-list" id="layerList">
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="water" checked><span class="swatch swatch-water"></span>Rivers &amp; Water</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="boundary" checked><span class="swatch swatch-boundary"></span>City Boundary</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="firstDue"><span class="swatch swatch-firstdue"></span>First-Due (approx.)</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="fdc"><span class="swatch swatch-fdc"></span>FDC</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="lockedGates"><span class="swatch swatch-gate"></span>Locked Gates</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="blockedStreets"><span class="swatch swatch-blocked"></span>Blocked Streets</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="stations" checked disabled><span class="swatch swatch-station"></span>Stations</label></li>
+          </ul>
+        </section>
+
+        <section class="rail-group score-group">
+          <p class="rail-label">Session Score</p>
+          <dl class="score">
+            <div><dt>Correct</dt><dd id="scoreCorrect">0</dd></div>
+            <div><dt>Attempts</dt><dd id="scoreAttempts">0</dd></div>
+            <div><dt>Streak</dt><dd id="scoreStreak">0</dd></div>
+          </dl>
+          <button class="reset-btn" id="resetScore">Reset score</button>
+        </section>
+
+      </aside>
+
+      <main class="screen-wrap">
+        <div class="screen" id="screen">
+          <canvas id="mapCanvas"></canvas>
+          <div class="crosshair-x" aria-hidden="true"></div>
+          <div class="scanline" aria-hidden="true"></div>
+          <div class="coord-readout" id="coordReadout">LAT -- &middot; LON --</div>
+          <div class="zoom-controls">
+            <button id="zoomIn" aria-label="Zoom in">+</button>
+            <button id="zoomReset" aria-label="Reset view">&#8635;</button>
+            <button id="zoomOut" aria-label="Zoom out">&minus;</button>
+          </div>
+        </div>
+
+        <div class="readout" id="readout">
+          <div class="readout-idle" id="readoutIdle">
+            <p class="readout-hint">MAP MODE &mdash; pan, zoom, tap a station for its info card.</p>
+          </div>
+        </div>
+      </main>
+
+    </div>
+
+    <footer class="statusbar">
+      <span>Unofficial study resource &mdash; Recruit Class 26-04. Not a PF&amp;R publication.</span>
+      <span>Source: City of Portland Fire Bureau MDT data &middot; EPSG:2913 project CRS</span>
+    </footer>
+
+  </div>
+
+  <script src="data.js?v=3"></script>
+  <script src="app.js?v=3"></script>
+</body>
+</html>
