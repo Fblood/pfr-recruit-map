@@ -418,10 +418,22 @@
     paintScore();
   };
 
-  function recordAnswer(isCorrect) {
+  function recordAnswer(isCorrect, stationId) {
     score.attempts += 1;
     if (isCorrect) { score.correct += 1; score.streak += 1; } else { score.streak = 0; }
     paintScore();
+    // If embedded in the PFR Recruit Hub, report the answer so it can be
+    // recorded against real per-student mastery tracking. No-ops (and
+    // stays silent) when opened standalone — this site works fully on
+    // its own either way.
+    if (window.parent !== window && stationId != null) {
+      try {
+        window.parent.postMessage(
+          { type: "pfr-map:answer", stationId: String(stationId), correct: !!isCorrect },
+          "*"
+        );
+      } catch (e) { /* ignore — standalone or blocked, not fatal */ }
+    }
   }
 
   // ---------------------------------------------------------------------
@@ -504,7 +516,7 @@
           fb.className = "feedback-line bad";
           flashState.revealNumber = num; flashState.revealColor = "#FFA82E";
         }
-        recordAnswer(correct);
+        recordAnswer(correct, num);
         render();
         document.getElementById("fbNext").disabled = false;
       });
@@ -603,7 +615,7 @@
       fb.textContent = `Not quite — your guess is in red, Station ${blindState.current}'s real spot is in green.`;
       fb.className = "feedback-line bad";
     }
-    recordAnswer(correct);
+    recordAnswer(correct, blindState.current);
     document.getElementById("blNext").disabled = false;
     render();
   }
