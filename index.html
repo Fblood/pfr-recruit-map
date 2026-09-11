@@ -30,27 +30,42 @@
       </div>
     </header>
 
+    <nav class="mode-strip" aria-label="Study mode">
+      <div class="mode-switch" role="tablist" aria-label="Study mode">
+        <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
+        <button class="mode-btn" data-mode="flashcard" role="tab" aria-selected="false">Flashcard</button>
+        <button class="mode-btn" data-mode="route" role="tab" aria-selected="false">Route</button>
+        <button class="mode-btn" data-mode="blind" role="tab" aria-selected="false">Blind Map</button>
+      </div>
+      <div class="mode-switch mode-switch--sm" id="routeControls" hidden>
+        <button class="mode-btn is-active" data-route="geographic">Geographic</button>
+        <button class="mode-btn" data-route="numeric">Numeric</button>
+      </div>
+    </nav>
+
     <div class="layout">
 
-      <aside class="rail" id="rail">
-
-        <section class="rail-group">
-          <p class="rail-label">Mode</p>
-          <div class="mode-switch" role="tablist" aria-label="Study mode">
-            <button class="mode-btn is-active" data-mode="map" role="tab" aria-selected="true">Map</button>
-            <button class="mode-btn" data-mode="flashcard" role="tab" aria-selected="false">Flashcard</button>
-            <button class="mode-btn" data-mode="route" role="tab" aria-selected="false">Route</button>
-            <button class="mode-btn" data-mode="blind" role="tab" aria-selected="false">Blind Map</button>
+      <main class="screen-wrap">
+        <div class="screen" id="screen">
+          <canvas id="mapCanvas"></canvas>
+          <div class="crosshair-x" aria-hidden="true"></div>
+          <div class="scanline" aria-hidden="true"></div>
+          <div class="coord-readout" id="coordReadout">LAT -- &middot; LON --</div>
+          <div class="zoom-controls">
+            <button id="zoomIn" aria-label="Zoom in">+</button>
+            <button id="zoomReset" aria-label="Reset view">&#8635;</button>
+            <button id="zoomOut" aria-label="Zoom out">&minus;</button>
           </div>
-        </section>
+        </div>
 
-        <section class="rail-group" id="routeControls" hidden>
-          <p class="rail-label">Route source</p>
-          <div class="mode-switch mode-switch--sm">
-            <button class="mode-btn is-active" data-route="geographic">Geographic</button>
-            <button class="mode-btn" data-route="numeric">Numeric</button>
+        <div class="readout" id="readout">
+          <div class="readout-idle" id="readoutIdle">
+            <p class="readout-hint">MAP MODE &mdash; pan, zoom, tap a station for its info card.</p>
           </div>
-        </section>
+        </div>
+      </main>
+
+      <aside class="side-panel" id="rail">
 
         <section class="rail-group">
           <p class="rail-label">Layers</p>
@@ -76,26 +91,6 @@
         </section>
 
       </aside>
-
-      <main class="screen-wrap">
-        <div class="screen" id="screen">
-          <canvas id="mapCanvas"></canvas>
-          <div class="crosshair-x" aria-hidden="true"></div>
-          <div class="scanline" aria-hidden="true"></div>
-          <div class="coord-readout" id="coordReadout">LAT -- &middot; LON --</div>
-          <div class="zoom-controls">
-            <button id="zoomIn" aria-label="Zoom in">+</button>
-            <button id="zoomReset" aria-label="Reset view">&#8635;</button>
-            <button id="zoomOut" aria-label="Zoom out">&minus;</button>
-          </div>
-        </div>
-
-        <div class="readout" id="readout">
-          <div class="readout-idle" id="readoutIdle">
-            <p class="readout-hint">MAP MODE &mdash; pan, zoom, tap a station for its info card.</p>
-          </div>
-        </div>
-      </main>
 
     </div>
 
