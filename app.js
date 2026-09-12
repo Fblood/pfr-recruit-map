@@ -364,6 +364,102 @@
   popup.style.display = "none";
   screenEl.appendChild(popup);
 
+  const POPUP_TABS = [
+    { id: "overview", label: "Overview" },
+    { id: "info", label: "Station Info" },
+    { id: "history", label: "History" },
+  ];
+  let popupTab = "overview";
+
+  function listOrPlaceholder(items) {
+    if (!items || !items.length) return `<p class="popup-empty">Not yet available.</p>`;
+    return `<ul class="popup-list">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
+  }
+
+  function popupPanelContent(hit, tab) {
+    const p = hit.properties;
+    const profile = p.profile || null;
+    if (tab === "overview") {
+      return `<span>${p.ADDRESS}</span>`;
+    }
+    if (tab === "info") {
+      const crew = profile && profile.crew_per_shift
+        ? Object.entries(profile.crew_per_shift).map(([unit, n]) => `${unit}: ${n} per shift`)
+        : null;
+      return `
+        <p class="popup-field-label">Apparatus</p>
+        ${listOrPlaceholder(profile && profile.apparatus)}
+        <p class="popup-field-label">Crew per shift</p>
+        ${listOrPlaceholder(crew)}
+        <p class="popup-field-label">Specialties</p>
+        ${listOrPlaceholder(profile && profile.specialties)}
+      `;
+    }
+    if (tab === "history") {
+      return profile && profile.history
+        ? `<p class="popup-history">${profile.history}</p>`
+        : `<p class="popup-empty">Not yet available.</p>`;
+    }
+    return "";
+  }
+
+  function renderPopupTabs(hit) {
+    const tabsHtml = POPUP_TABS.map((t) => `
+      <button class="popup-tab${t.id === popupTab ? " is-active" : ""}" data-tab="${t.id}"
+        role="tab" aria-selected="${t.id === popupTab}">${t.label}</button>
+    `).join("");
+    popup.innerHTML = `
+      <div class="popup-head">
+        <b>Station ${hit.properties.STATION}</b>
+        <button class="popup-close" aria-label="Close station card">&times;</button>
+      </div>
+      <div class="popup-tabs" role="tablist" aria-label="Station details">${tabsHtml}</div>
+      <div class="popup-panel">${popupPanelContent(hit, popupTab)}</div>
+    `;
+  }
+
+  function clampPopupToScreen() {
+    const screenRect = screenEl.getBoundingClientRect();
+    const popRect = popup.getBoundingClientRect();
+    let dx = 0, dy = 0;
+    if (popRect.left < screenRect.left) dx = screenRect.left - popRect.left;
+    if (popRect.right > screenRect.right) dx = screenRect.right - popRect.right;
+    if (popRect.top < screenRect.top) dy = screenRect.top - popRect.top;
+    if (dx || dy) {
+      const curLeft = parseFloat(popup.style.left) || 0;
+      const curTop = parseFloat(popup.style.top) || 0;
+      popup.style.left = (curLeft + dx) + "px";
+      popup.style.top = (curTop + dy) + "px";
+    }
+  }
+
+  let currentPopupHit = null;
+
+  function openPopup(hit, x, y) {
+    currentPopupHit = hit;
+    popupTab = "overview";
+    popup.style.left = x + "px";
+    popup.style.top = y + "px";
+    renderPopupTabs(hit);
+    popup.style.display = "block";
+    clampPopupToScreen();
+  }
+
+  function closePopup() {
+    currentPopupHit = null;
+    popup.style.display = "none";
+  }
+
+  popup.addEventListener("click", (e) => {
+    const tabBtn = e.target.closest(".popup-tab");
+    if (tabBtn) {
+      popupTab = tabBtn.dataset.tab;
+      renderPopupTabs(currentPopupHit);
+      return;
+    }
+    if (e.target.closest(".popup-close")) { closePopup(); }
+  });
+
   function nearestStation(sx, sy, tolerance) {
     let best = null, bestD = tolerance;
     D.stations.features.forEach((f) => {
@@ -379,15 +475,12 @@
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
 
     if (currentMode === "blind") { handleBlindClick(sx, sy); return; }
-    if (currentMode !== "map") { popup.style.display = "none"; return; }
+    if (currentMode !== "map") { closePopup(); return; }
 
     const hit = nearestStation(sx, sy, 16);
-    if (!hit) { popup.style.display = "none"; return; }
+    if (!hit) { closePopup(); return; }
     const { x, y } = toScreen(hit.geometry.coordinates[0], hit.geometry.coordinates[1]);
-    popup.style.left = x + "px";
-    popup.style.top = y + "px";
-    popup.innerHTML = `<b>Station ${hit.properties.STATION}</b><span>${hit.properties.ADDRESS}</span>`;
-    popup.style.display = "block";
+    openPopup(hit, x, y);
   }
 
   // ---------------------------------------------------------------------
@@ -640,7 +733,7 @@
       b.setAttribute("aria-selected", String(active));
     });
     routeControls.hidden = mode !== "route";
-    popup.style.display = "none";
+    closePopup();
     resetView();
 
     if (mode === "flashcard") { nextFlashcard(); }

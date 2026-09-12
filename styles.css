@@ -410,14 +410,62 @@ button {
   background: var(--panel-raised);
   border: 1px solid var(--amber-dim);
   border-radius: 8px;
-  padding: 10px 12px;
+  padding: 10px 12px 12px;
   font-size: 12.5px;
-  pointer-events: none;
-  white-space: nowrap;
+  width: 240px;
+  max-width: calc(100vw - 32px);
   box-shadow: 0 8px 20px rgba(6,9,10,0.55), 0 0 0 1px rgba(255,168,46,0.08);
+  z-index: 5;
 }
-.popup b { font-family: var(--font-display); font-size: 1rem; color: var(--amber); display:block; }
-.popup span { color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; }
+.popup-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.popup-head b { font-family: var(--font-display); font-size: 1rem; color: var(--amber); }
+.popup-close {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-size: 16px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+.popup-close:hover { color: var(--text); background: var(--panel-line); }
+.popup-tabs { display: flex; gap: 4px; margin-bottom: 8px; border-bottom: 1px solid var(--panel-line); }
+.popup-tab {
+  appearance: none;
+  border: none;
+  background: none;
+  color: var(--text-dim);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 5px 2px 7px;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.popup-tab:hover { color: var(--text); }
+.popup-tab.is-active { color: var(--amber); border-bottom-color: var(--amber); }
+.popup-panel span { color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; }
+.popup-field-label {
+  margin: 10px 0 3px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+.popup-field-label:first-child { margin-top: 0; }
+.popup-list { margin: 0; padding-left: 16px; color: var(--text); }
+.popup-list li { margin-bottom: 2px; }
+.popup-empty { margin: 0; color: var(--text-dim); font-style: italic; }
+.popup-history { margin: 0; color: var(--text); line-height: 1.4; }
 
 /* ---------- Status bar ---------- */
 .statusbar {
