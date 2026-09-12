@@ -376,6 +376,21 @@
     return `<ul class="popup-list">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
   }
 
+  function crewList(crew) {
+    if (crew == null) return null;
+    if (typeof crew === "number") return [`${crew} total per shift`];
+    if (typeof crew === "object") return Object.entries(crew).map(([unit, n]) => `${unit}: ${n} per shift`);
+    return [String(crew)];
+  }
+
+  function sourcesHtml(profile) {
+    if (!profile || !profile.sources || !profile.sources.length) return "";
+    const links = profile.sources
+      .map((url) => `<a href="${url}" target="_blank" rel="noopener">${new URL(url).hostname.replace(/^www\./, "")}</a>`)
+      .join(", ");
+    return `<p class="popup-sources">Sources: ${links}</p>`;
+  }
+
   function popupPanelContent(hit, tab) {
     const p = hit.properties;
     const profile = p.profile || null;
@@ -383,22 +398,24 @@
       return `<span>${p.ADDRESS}</span>`;
     }
     if (tab === "info") {
-      const crew = profile && profile.crew_per_shift
-        ? Object.entries(profile.crew_per_shift).map(([unit, n]) => `${unit}: ${n} per shift`)
-        : null;
       return `
         <p class="popup-field-label">Apparatus</p>
         ${listOrPlaceholder(profile && profile.apparatus)}
         <p class="popup-field-label">Crew per shift</p>
-        ${listOrPlaceholder(crew)}
+        ${listOrPlaceholder(crewList(profile && profile.crew_per_shift))}
         <p class="popup-field-label">Specialties</p>
         ${listOrPlaceholder(profile && profile.specialties)}
+        ${profile && profile.notes ? `<p class="popup-note">${profile.notes}</p>` : ""}
+        ${sourcesHtml(profile)}
       `;
     }
     if (tab === "history") {
-      return profile && profile.history
-        ? `<p class="popup-history">${profile.history}</p>`
-        : `<p class="popup-empty">Not yet available.</p>`;
+      return `
+        ${profile && profile.history
+          ? `<p class="popup-history">${profile.history}</p>`
+          : `<p class="popup-empty">Not yet available.</p>`}
+        ${sourcesHtml(profile)}
+      `;
     }
     return "";
   }

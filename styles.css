@@ -466,6 +466,26 @@ button {
 .popup-list li { margin-bottom: 2px; }
 .popup-empty { margin: 0; color: var(--text-dim); font-style: italic; }
 .popup-history { margin: 0; color: var(--text); line-height: 1.4; }
+.popup-note {
+  margin: 10px 0 0;
+  padding: 7px 9px;
+  background: rgba(255,168,46,0.08);
+  border: 1px solid var(--amber-dim);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-size: 11px;
+  line-height: 1.4;
+}
+.popup-sources {
+  margin: 10px 0 0;
+  padding-top: 8px;
+  border-top: 1px solid var(--panel-line);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-dim);
+}
+.popup-sources a { color: var(--blue); text-decoration: none; }
+.popup-sources a:hover { text-decoration: underline; }
 
 /* ---------- Status bar ---------- */
 .statusbar {
