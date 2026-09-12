@@ -144,6 +144,38 @@ button {
   transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease, transform 0.08s ease;
 }
 .mode-switch--sm .mode-btn { font-size: 0.85rem; padding: 6px 12px; }
+
+.toggle-switch { display: flex; align-items: center; gap: 8px; cursor: pointer; flex-shrink: 0; }
+.toggle-switch input { position: absolute; opacity: 0; width: 0; height: 0; }
+.toggle-track {
+  position: relative;
+  width: 34px;
+  height: 18px;
+  background: var(--panel-line);
+  border-radius: 999px;
+  transition: background 0.15s ease;
+  flex: none;
+}
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.toggle-switch input:checked + .toggle-track { background: var(--amber-dim); }
+.toggle-switch input:checked + .toggle-track .toggle-thumb { transform: translateX(16px); background: var(--amber); }
+.toggle-switch input:focus-visible + .toggle-track { outline: 2px solid var(--amber); outline-offset: 2px; }
+.toggle-label {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--text-dim);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
 .mode-btn:hover { border-color: var(--panel-line); background: #232B2E; }
 .mode-btn:active { transform: scale(0.97); }
 .mode-btn.is-active {

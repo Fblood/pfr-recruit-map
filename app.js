@@ -263,6 +263,16 @@
       ctx.fillRect(-size, -size, size * 2, size * 2);
       ctx.strokeRect(-size, -size, size * 2, size * 2);
       ctx.restore();
+    } else if (shape === "house") {
+      const w = size * 1.7, roofH = size * 1.1, wallH = size * 1.3;
+      ctx.beginPath();
+      ctx.moveTo(x, y - roofH - wallH / 2);
+      ctx.lineTo(x + w / 2, y - wallH / 2);
+      ctx.lineTo(x + w / 2, y + wallH / 2);
+      ctx.lineTo(x - w / 2, y + wallH / 2);
+      ctx.lineTo(x - w / 2, y - wallH / 2);
+      ctx.closePath();
+      ctx.fill(); ctx.stroke();
     }
     return { x, y };
   }
@@ -286,7 +296,19 @@
 
   function stationVisual(f) {
     const shared = f.properties.DISTRICT === "PORTLAND/GRESHAM - SHARED";
-    return shared ? { shape: "triangle", color: "#E8933F" } : { shape: "circle", color: "#E8503F" };
+    return shared ? { shape: "triangle", color: "#E8933F" } : { shape: "house", color: "#E8503F" };
+  }
+
+  function drawStationNumber(lon, lat, text, color) {
+    const { x, y } = toScreen(lon, lat);
+    ctx.font = "600 10px " + "'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "rgba(10,14,15,0.75)";
+    const w = ctx.measureText(text).width;
+    ctx.fillRect(x - w / 2 - 2, y - 15, w + 4, 11);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y - 5);
   }
 
   function drawStations(opts) {
@@ -295,6 +317,7 @@
       const [lon, lat] = f.geometry.coordinates;
       if (opts.blind) {
         drawPointMarker(lon, lat, "circle", "#C7CFC9", 4);
+        if (opts.showNumbers) drawStationNumber(lon, lat, f.properties.STATION, "#C7CFC9");
         return;
       }
       const v = stationVisual(f);
@@ -337,7 +360,7 @@
       }
       drawStations({ highlight });
     } else if (currentMode === "blind") {
-      drawStations({ blind: true });
+      drawStations({ blind: true, showNumbers: blindShowNumbers });
       if (blindState.wrongPoint) {
         drawPointMarker(blindState.wrongPoint.lon, blindState.wrongPoint.lat, "circle", "#E8503F", 7);
       }
@@ -685,6 +708,13 @@
 
   const blindBag = makeBag(STATION_NUMBERS);
   const blindState = { current: null, answered: false, revealNumber: null, wrongPoint: null };
+  const blindControls = document.getElementById("blindControls");
+  const blindShowNumbersInput = document.getElementById("blindShowNumbers");
+  let blindShowNumbers = false;
+  blindShowNumbersInput.addEventListener("change", () => {
+    blindShowNumbers = blindShowNumbersInput.checked;
+    render();
+  });
 
   function renderBlind() {
     const num = blindState.current;
@@ -750,6 +780,7 @@
       b.setAttribute("aria-selected", String(active));
     });
     routeControls.hidden = mode !== "route";
+    blindControls.hidden = mode !== "blind";
     closePopup();
     resetView();
 

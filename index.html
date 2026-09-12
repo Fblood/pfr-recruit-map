@@ -8,7 +8,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=5">
+<link rel="stylesheet" href="styles.css?v=6">
 </head>
 <body>
 
@@ -41,6 +41,11 @@
         <button class="mode-btn is-active" data-route="geographic">Geographic</button>
         <button class="mode-btn" data-route="numeric">Numeric</button>
       </div>
+      <label class="toggle-switch" id="blindControls" hidden>
+        <input type="checkbox" id="blindShowNumbers">
+        <span class="toggle-track"><span class="toggle-thumb"></span></span>
+        <span class="toggle-label">Show numbers</span>
+      </label>
     </nav>
 
     <div class="layout">
@@ -102,6 +107,6 @@
   </div>
 
   <script src="data.js?v=5"></script>
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=6"></script>
 </body>
 </html>
