@@ -296,7 +296,7 @@
 
   function stationVisual(f) {
     const shared = f.properties.DISTRICT === "PORTLAND/GRESHAM - SHARED";
-    return shared ? { shape: "triangle", color: "#E8933F" } : { shape: "house", color: "#E8503F" };
+    return shared ? { shape: "house", color: "#E8933F" } : { shape: "house", color: "#E8503F" };
   }
 
   function drawStationNumber(lon, lat, text, color) {
@@ -337,6 +337,7 @@
   function render() {
     if (!cw || !ch) return;
     ctx.clearRect(0, 0, cw, ch);
+    repositionPopup();
 
     if (layerState.water) drawPolygonLayer(D.water, "rgba(76,140,168,0.35)", "rgba(76,140,168,0.6)", 1);
     if (layerState.boundary) drawPolygonLayer(D.boundary, "rgba(79,143,99,0.06)", "rgba(79,143,99,0.8)", 1.4);
@@ -418,7 +419,12 @@
     const p = hit.properties;
     const profile = p.profile || null;
     if (tab === "overview") {
-      return `<span>${p.ADDRESS}</span>`;
+      const [lon, lat] = hit.geometry.coordinates;
+      const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+      return `
+        <span>${p.ADDRESS}</span>
+        <a class="popup-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer">Open in Google Maps &rarr;</a>
+      `;
     }
     if (tab === "info") {
       return `
@@ -488,6 +494,14 @@
   function closePopup() {
     currentPopupHit = null;
     popup.style.display = "none";
+  }
+
+  function repositionPopup() {
+    if (!currentPopupHit || popup.style.display === "none") return;
+    const { x, y } = toScreen(currentPopupHit.geometry.coordinates[0], currentPopupHit.geometry.coordinates[1]);
+    popup.style.left = x + "px";
+    popup.style.top = y + "px";
+    clampPopupToScreen();
   }
 
   popup.addEventListener("click", (e) => {

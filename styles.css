@@ -248,6 +248,15 @@ button {
 .swatch-gate { background: var(--amber); border-radius: 2px; clip-path: polygon(50% 0%, 0% 100%, 100% 100%); }
 .swatch-blocked { background: #D6451E; border-radius: 2px; transform: rotate(45deg); }
 .swatch-station { background: var(--red); }
+.swatch-station-shared { background: #E8933F; }
+.rail-note {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
+}
 
 .score-group { margin-top: auto; padding-top: 14px; border-top: 1px solid var(--panel-line); }
 .score { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 4px 10px; }
@@ -492,7 +501,17 @@ button {
 }
 .popup-tab:hover { color: var(--text); }
 .popup-tab.is-active { color: var(--amber); border-bottom-color: var(--amber); }
-.popup-panel span { color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; }
+.popup-panel span { color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; display: block; }
+.popup-gmaps {
+  display: inline-block;
+  margin-top: 8px;
+  color: var(--blue);
+  font-family: var(--font-display);
+  font-weight: 600;
+  font-size: 12.5px;
+  text-decoration: none;
+}
+.popup-gmaps:hover { text-decoration: underline; }
 .popup-field-label {
   margin: 10px 0 3px;
   font-family: var(--font-mono);
