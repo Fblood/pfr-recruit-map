@@ -88,7 +88,7 @@
   }
 
   function zoomAt(sx, sy, factor) {
-    const newZoom = Math.min(40, Math.max(0.6, view.zoom * factor));
+    const newZoom = Math.min(40, Math.max(0.2, view.zoom * factor));
     const cxWorld = (sx - view.panX) / view.zoom;
     const cyWorld = (sy - view.panY) / view.zoom;
     view.panX = sx - cxWorld * newZoom;
