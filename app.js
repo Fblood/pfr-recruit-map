@@ -482,7 +482,10 @@
     `).join("");
     popup.innerHTML = `
       <div class="popup-head">
-        <b>Station ${hit.properties.STATION}</b>
+        <div>
+          <span class="popup-station-eyebrow">Station</span>
+          <span class="popup-station-num">${hit.properties.STATION}</span>
+        </div>
         <button class="popup-close" aria-label="Close station card">&times;</button>
       </div>
       <div class="popup-tabs" role="tablist" aria-label="Station details">${tabsHtml}</div>
@@ -535,6 +538,7 @@
     if (tabBtn) {
       popupTab = tabBtn.dataset.tab;
       renderPopupTabs(currentPopupHit);
+      clampPopupToScreen();
       return;
     }
     if (e.target.closest(".popup-close")) { closePopup(); }
