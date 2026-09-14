@@ -350,7 +350,17 @@
   let currentRouteMode = "geographic";
   let currentLegIndex = 0;
 
+  let renderScheduled = false;
   function render() {
+    if (renderScheduled) return;
+    renderScheduled = true;
+    requestAnimationFrame(() => {
+      renderScheduled = false;
+      renderNow();
+    });
+  }
+
+  function renderNow() {
     if (!cw || !ch) return;
     ctx.clearRect(0, 0, cw, ch);
     repositionPopup();
