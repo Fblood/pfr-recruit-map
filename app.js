@@ -664,7 +664,7 @@
         <div class="card-prompt">
           <p class="card-eyebrow">Which station is at this address?</p>
           <p class="card-main">${f.properties.ADDRESS}</p>
-          <p class="feedback-line" id="fbLine">&nbsp;</p>
+          <p class="feedback-line" id="fbLine" aria-live="polite">&nbsp;</p>
         </div>
         <div class="choices" id="fbChoices">
           ${choices.map((c) => `<button class="choice-btn" data-num="${c}">${c}</button>`).join("")}
@@ -773,7 +773,7 @@
           <p class="card-eyebrow">Click the map position for this station</p>
           <p class="card-main">Station ${num}</p>
           <p class="card-sub">${f.properties.ADDRESS}</p>
-          <p class="feedback-line" id="blLine">&nbsp;</p>
+          <p class="feedback-line" id="blLine" aria-live="polite">&nbsp;</p>
         </div>
         <button class="next-btn" id="blNext" disabled>Next &rarr;</button>
       </div>`;

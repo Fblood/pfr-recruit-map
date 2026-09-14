@@ -26,6 +26,8 @@ html, body {
   height: 100%;
 }
 
+html { color-scheme: dark; }
+
 body {
   margin: 0;
   background: #06090a;
@@ -50,6 +52,7 @@ body::before {
 button {
   font-family: inherit;
   cursor: pointer;
+  touch-action: manipulation;
 }
 
 .console {
