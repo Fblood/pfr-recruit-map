@@ -531,7 +531,7 @@
     if (currentMode === "blind") { handleBlindClick(sx, sy); return; }
     if (currentMode !== "map") { closePopup(); return; }
 
-    const hit = nearestStation(sx, sy, 16);
+    const hit = nearestStation(sx, sy, 22);
     if (!hit) { closePopup(); return; }
     const { x, y } = toScreen(hit.geometry.coordinates[0], hit.geometry.coordinates[1]);
     openPopup(hit, x, y);
