@@ -117,6 +117,22 @@
   }
   new ResizeObserver(resizeCanvas).observe(screenEl);
 
+  // When embedded (e.g. in the Recruit Hub's iframe), report real content
+  // height to the parent so it can size the iframe to exactly fit — no
+  // guessed min-height, no inner scrollbar unless the parent window
+  // itself is genuinely too short to show it.
+  if (window.parent !== window) {
+    const consoleEl = document.querySelector(".console");
+    const reportHeight = () => {
+      window.parent.postMessage(
+        { type: "pfr-map:height", height: consoleEl.scrollHeight },
+        "*"
+      );
+    };
+    new ResizeObserver(reportHeight).observe(consoleEl);
+    reportHeight();
+  }
+
   // ---------------------------------------------------------------------
   // PAN / ZOOM INTERACTION
   // ---------------------------------------------------------------------
