@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=11">
+<link rel="stylesheet" href="styles.css?v=12">
 </head>
 <body>
 
@@ -82,9 +82,26 @@
             <li><label class="layer-toggle"><input type="checkbox" data-layer="fdc"><span class="swatch swatch-fdc"></span>FDC</label></li>
             <li><label class="layer-toggle"><input type="checkbox" data-layer="lockedGates"><span class="swatch swatch-gate"></span>Locked Gates</label></li>
             <li><label class="layer-toggle"><input type="checkbox" data-layer="blockedStreets"><span class="swatch swatch-blocked"></span>Blocked Streets</label></li>
+            <li><label class="layer-toggle"><input type="checkbox" data-layer="sectors"><span class="swatch swatch-sector"></span>Sectors (NW/NE/SE/SW/N)</label></li>
             <li><label class="layer-toggle"><input type="checkbox" data-layer="stations" checked disabled><span class="swatch swatch-station"></span>Stations</label></li>
           </ul>
           <p class="rail-note"><span class="swatch swatch-station-shared"></span>Orange = Station 31, shared with Gresham</p>
+        </section>
+
+        <section class="rail-group" id="sectorLockControls" hidden>
+          <p class="rail-label">Sector Lock</p>
+          <label class="toggle-switch" id="lockToSectorLabel">
+            <input type="checkbox" id="lockToSector">
+            <span class="toggle-track"><span class="toggle-thumb"></span></span>
+            <span class="toggle-label">Lock to sector</span>
+          </label>
+          <div class="sector-buttons" id="sectorButtons" role="group" aria-label="Choose a sector to lock to" hidden>
+            <button type="button" data-sector="N" aria-pressed="false">N</button>
+            <button type="button" data-sector="NE" aria-pressed="false">NE</button>
+            <button type="button" data-sector="NW" aria-pressed="false">NW</button>
+            <button type="button" data-sector="SE" aria-pressed="false">SE</button>
+            <button type="button" data-sector="SW" aria-pressed="false">SW</button>
+          </div>
         </section>
 
         <section class="rail-group score-group">
@@ -108,7 +125,7 @@
 
   </div>
 
-  <script src="data.js?v=5"></script>
-  <script src="app.js?v=12"></script>
+  <script src="data.js?v=6"></script>
+  <script src="app.js?v=13"></script>
 </body>
 </html>

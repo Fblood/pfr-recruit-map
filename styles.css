@@ -252,6 +252,30 @@ button {
 .swatch-blocked { background: #D6451E; border-radius: 2px; transform: rotate(45deg); }
 .swatch-station { background: var(--red); }
 .swatch-station-shared { background: #E8933F; }
+.swatch-sector {
+  width: 14px; height: 0; border-radius: 0;
+  border-top: 1.5px dashed #4F8F63;
+  background: none; box-shadow: none;
+  align-self: center;
+}
+
+.sector-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.sector-buttons button {
+  min-width: 44px; min-height: 44px;
+  border: 1px solid var(--panel-line);
+  background: var(--panel);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  letter-spacing: 0.03em;
+  border-radius: 4px;
+}
+.sector-buttons button:hover { border-color: var(--amber-dim); }
+.sector-buttons button.is-active {
+  background: var(--amber-dim);
+  border-color: var(--amber);
+  color: var(--amber);
+}
 .rail-note {
   display: flex;
   align-items: center;

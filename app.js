@@ -94,6 +94,7 @@
     view.panX = sx - cxWorld * newZoom;
     view.panY = sy - cyWorld * newZoom;
     view.zoom = newZoom;
+    clampPan();
     render();
   }
 
@@ -101,7 +102,47 @@
     view.zoom = 1;
     view.panX = 0;
     view.panY = 0;
+    clampPan();
     render();
+  }
+
+  // ---------------------------------------------------------------------
+  // PAN CLAMP — the view can never be dragged/zoomed out of frame.
+  // ---------------------------------------------------------------------
+  // Hard-stop clamp (Mapbox `maxBounds` / Google `restriction` pattern),
+  // not Leaflet's elastic "bounce back" — the ask was "not movable out of
+  // frame" at all, not a soft edge. Clamps against either the full city
+  // extent (`bounds`) or, while locked, a single sector's own extent.
+  // `bx0/by0/bx1/by1` are the active extent's corners in the same
+  // "fit-space" toScreen already composes through (`bx*zoom+panX`).
+
+  let lockedSector = null; // { code, bx0, by0, bx1, by1 } | null
+
+  function activeExtentBox() {
+    if (lockedSector) return lockedSector;
+    const bx0 = 0 * fitScale + fitOffX;
+    const by0 = 0 * fitScale + fitOffY;
+    const bx1 = worldW * fitScale + fitOffX;
+    const by1 = worldH * fitScale + fitOffY;
+    return { bx0, by0, bx1, by1 };
+  }
+
+  function clampAxis(pan, zoom, b0, b1, extent) {
+    const span = (b1 - b0) * zoom;
+    if (span <= extent) {
+      // Zoomed out past (or exactly at) the extent's own size on this axis —
+      // no room to pan; center the content instead of leaving it adrift.
+      return (extent - span) / 2 - b0 * zoom;
+    }
+    const min = extent - b1 * zoom;
+    const max = -b0 * zoom;
+    return Math.min(max, Math.max(min, pan));
+  }
+
+  function clampPan() {
+    const { bx0, by0, bx1, by1 } = activeExtentBox();
+    view.panX = clampAxis(view.panX, view.zoom, bx0, bx1, cw);
+    view.panY = clampAxis(view.panY, view.zoom, by0, by1, ch);
   }
 
   function resizeCanvas() {
@@ -113,6 +154,7 @@
     canvas.height = Math.round(ch * dpr);
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     computeFit();
+    clampPan();
     render();
   }
   new ResizeObserver(resizeCanvas).observe(screenEl);
@@ -153,6 +195,7 @@
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
     view.panX += dx; view.panY += dy;
+    clampPan();
     lastX = e.clientX; lastY = e.clientY;
     render();
   });
@@ -210,11 +253,114 @@
   // LAYER TOGGLES
   // ---------------------------------------------------------------------
 
-  const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false };
+  const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false, sectors: false };
   document.querySelectorAll("#layerList input[data-layer]").forEach((input) => {
     input.addEventListener("change", () => {
       layerState[input.dataset.layer] = input.checked;
+      if (input.dataset.layer === "sectors") updateSectorControlsVisibility();
       render();
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // SECTORS + LOCK-TO-SECTOR
+  // ---------------------------------------------------------------------
+  // Real Portland "Administrative Sextants" data (City of Portland ArcGIS,
+  // see fetch_sectors.py) — 5 colloquial quadrants shipped (N/NE/NW/SE/SW;
+  // South Portland deliberately dropped, docs/decisions.md). Drawn as
+  // faint dashed lines, never color-only (each carries a visible label).
+
+  const SECTOR_FULL_NAME = { N: "North", NE: "Northeast", NW: "Northwest", SE: "Southeast", SW: "Southwest" };
+
+  function sectorBBox(feature) {
+    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+    ringsOf(feature.geometry).forEach((ring) => ring.forEach(([lon, lat]) => {
+      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+    }));
+    return { minLon, minLat, maxLon, maxLat };
+  }
+
+  function drawSectors() {
+    const sectorColor = "rgba(79,143,99,0.55)"; // same civic hue as the city boundary, lower opacity
+    D.sectors.features.forEach((f) => {
+      ringsOf(f.geometry).forEach((ring) => drawLine(ring, sectorColor, 1.2, [6, 5]));
+    });
+    D.sectors.features.forEach((f) => {
+      const { minLon, minLat, maxLon, maxLat } = sectorBBox(f);
+      const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
+      const code = f.properties.PREFIX;
+      ctx.font = "600 11px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      const label = code + (sectorLabelsExpanded ? ` — ${SECTOR_FULL_NAME[code]}` : "");
+      const w = ctx.measureText(label).width;
+      ctx.fillStyle = "rgba(10,14,15,0.6)";
+      ctx.fillRect(x - w / 2 - 4, y - 8, w + 8, 16);
+      ctx.fillStyle = "rgba(180,214,192,0.9)";
+      ctx.fillText(label, x, y);
+    });
+  }
+
+  let sectorLabelsExpanded = false; // short code by default; full name the first time the layer is shown
+  let sectorsEverShown = false;
+
+  function updateSectorControlsVisibility() {
+    const on = layerState.sectors;
+    sectorLockControls.hidden = !on;
+    if (on && !sectorsEverShown) {
+      sectorLabelsExpanded = true;
+      sectorsEverShown = true;
+      setTimeout(() => { sectorLabelsExpanded = false; render(); }, 4000);
+    }
+    if (!on) {
+      lockToggleInput.checked = false;
+      sectorButtons.hidden = true;
+      unlockSector();
+    }
+  }
+
+  const sectorLockControls = document.getElementById("sectorLockControls");
+  const lockToggleInput = document.getElementById("lockToSector");
+  const sectorButtons = document.getElementById("sectorButtons");
+
+  function unlockSector() {
+    lockedSector = null;
+    resetView();
+  }
+
+  function lockToSectorCode(code) {
+    const feature = D.sectors.features.find((f) => f.properties.PREFIX === code);
+    if (!feature) return;
+    const { minLon, minLat, maxLon, maxLat } = sectorBBox(feature);
+    const c1 = toWorld(minLon, maxLat), c2 = toWorld(maxLon, minLat);
+    const bx0 = Math.min(c1.wx, c2.wx) * fitScale + fitOffX;
+    const bx1 = Math.max(c1.wx, c2.wx) * fitScale + fitOffX;
+    const by0 = Math.min(c1.wy, c2.wy) * fitScale + fitOffY;
+    const by1 = Math.max(c1.wy, c2.wy) * fitScale + fitOffY;
+    const pad = 20;
+    const scale = Math.min((cw - pad * 2) / (bx1 - bx0), (ch - pad * 2) / (by1 - by0), 40);
+    view.zoom = Math.max(0.2, scale);
+    view.panX = cw / 2 - ((bx0 + bx1) / 2) * view.zoom;
+    view.panY = ch / 2 - ((by0 + by1) / 2) * view.zoom;
+    lockedSector = { bx0, by0, bx1, by1 };
+    clampPan();
+    render();
+    document.querySelectorAll("#sectorButtons button").forEach((b) => {
+      const active = b.dataset.sector === code;
+      b.classList.toggle("is-active", active);
+      b.setAttribute("aria-pressed", String(active));
+    });
+  }
+
+  lockToggleInput.addEventListener("change", () => {
+    sectorButtons.hidden = !lockToggleInput.checked;
+    if (!lockToggleInput.checked) unlockSector();
+  });
+  sectorButtons.querySelectorAll("button[data-sector]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      if (!lockToggleInput.checked) return;
+      lockToSectorCode(btn.dataset.sector);
     });
   });
 
@@ -367,6 +513,7 @@
 
     if (layerState.water) drawPolygonLayer(D.water, "rgba(76,140,168,0.35)", "rgba(76,140,168,0.6)", 1);
     if (layerState.boundary) drawPolygonLayer(D.boundary, "rgba(79,143,99,0.06)", "rgba(79,143,99,0.8)", 1.4);
+    if (layerState.sectors) drawSectors();
     if (layerState.firstDue) drawFirstDue();
     if (layerState.fdc) drawPoints(D.fdc, "square", "#1A9CA6", 3.4);
     if (layerState.lockedGates) drawPoints(D.lockedGates, "triangle", "#FFA82E", 3.6);

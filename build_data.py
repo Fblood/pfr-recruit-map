@@ -97,6 +97,18 @@ bundle["water"] = to_geojson_dict(water, {"GNIS_Name"})
 first_due = simplify(load("first_due_voronoi.geojson"), 0.0002)
 bundle["firstDue"] = to_geojson_dict(first_due, {"STATION"})
 
+# Portland's real "Administrative Sextants" layer (City of Portland ArcGIS,
+# Public/Boundaries/MapServer/10 -- see fetch_sectors.py). 6 simple polygons,
+# no simplification needed. Ships only the 5 colloquial quadrants recruits
+# actually use day to day -- South Portland (PREFIX "S") is dropped here
+# deliberately (Francisco's call, design sprint 2026-09-17): it has zero PF&R
+# stations and isn't part of the "NW/NE/SE/SW/N" culture this layer is for.
+# Don't "fix" it back in without checking docs/decisions.md first.
+sectors = load("sectors.geojson")
+sectors_fc = to_geojson_dict(sectors, {"PREFIX"})
+sectors_fc["features"] = [f for f in sectors_fc["features"] if f["properties"].get("PREFIX") != "S"]
+bundle["sectors"] = sectors_fc
+
 js = "const PFR_DATA = " + json.dumps(bundle, separators=(",", ":")) + ";\n"
 with open(OUT_PATH, "w", encoding="utf-8") as f:
     f.write(js)
