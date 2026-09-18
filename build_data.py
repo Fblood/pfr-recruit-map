@@ -109,6 +109,20 @@ sectors_fc = to_geojson_dict(sectors, {"PREFIX"})
 sectors_fc["features"] = [f for f in sectors_fc["features"] if f["properties"].get("PREFIX") != "S"]
 bundle["sectors"] = sectors_fc
 
+# Portland's official neighborhood boundaries (Public/Boundaries/MapServer/1,
+# see fetch_neighborhoods.py). 125 polygons -- simplified like the other
+# background layers, same tolerance as boundary/first-due.
+neighborhoods = simplify(load("neighborhoods.geojson"), 0.0002)
+bundle["neighborhoods"] = to_geojson_dict(neighborhoods, {"NAME"})
+
+# Hospitals only (see fetch_landmarks.py's header comment for why bridges
+# were dropped: PBOT's public bridge layer is a minor-structure maintenance
+# inventory, not the named Willamette River crossings a recruit would
+# recognize -- those are County/ODOT-owned and not in any Public/ endpoint
+# found this session). Points, no simplification needed.
+landmarks = load("landmarks.geojson")
+bundle["landmarks"] = to_geojson_dict(landmarks, {"kind", "name"})
+
 js = "const PFR_DATA = " + json.dumps(bundle, separators=(",", ":")) + ";\n"
 with open(OUT_PATH, "w", encoding="utf-8") as f:
     f.write(js)

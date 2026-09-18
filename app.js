@@ -7,12 +7,10 @@
 
   const D = PFR_DATA;
 
-  function ringsOf(geometry) {
-    if (!geometry) return [];
-    if (geometry.type === "Polygon") return geometry.coordinates;
-    if (geometry.type === "MultiPolygon") return geometry.coordinates.flat();
-    return [];
-  }
+  // ringsOf/polygonBBox/clampAxis/makeShuffleBag now live in geometry.js
+  // (loaded as a plain global script before this one, same convention as
+  // data.js's PFR_DATA) -- pure math, no DOM/canvas dependency, shared
+  // with the test suite. See geometry.test.js.
 
   function stationsByNumber() {
     const map = {};
@@ -125,18 +123,6 @@
     const bx1 = worldW * fitScale + fitOffX;
     const by1 = worldH * fitScale + fitOffY;
     return { bx0, by0, bx1, by1 };
-  }
-
-  function clampAxis(pan, zoom, b0, b1, extent) {
-    const span = (b1 - b0) * zoom;
-    if (span <= extent) {
-      // Zoomed out past (or exactly at) the extent's own size on this axis —
-      // no room to pan; center the content instead of leaving it adrift.
-      return (extent - span) / 2 - b0 * zoom;
-    }
-    const min = extent - b1 * zoom;
-    const max = -b0 * zoom;
-    return Math.min(max, Math.max(min, pan));
   }
 
   function clampPan() {
@@ -253,7 +239,7 @@
   // LAYER TOGGLES
   // ---------------------------------------------------------------------
 
-  const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false, sectors: false };
+  const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false, sectors: false, neighborhoods: false, landmarks: false };
   document.querySelectorAll("#layerList input[data-layer]").forEach((input) => {
     input.addEventListener("change", () => {
       layerState[input.dataset.layer] = input.checked;
@@ -272,22 +258,13 @@
 
   const SECTOR_FULL_NAME = { N: "North", NE: "Northeast", NW: "Northwest", SE: "Southeast", SW: "Southwest" };
 
-  function sectorBBox(feature) {
-    let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
-    ringsOf(feature.geometry).forEach((ring) => ring.forEach(([lon, lat]) => {
-      if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
-      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
-    }));
-    return { minLon, minLat, maxLon, maxLat };
-  }
-
   function drawSectors() {
     const sectorColor = "rgba(79,143,99,0.55)"; // same civic hue as the city boundary, lower opacity
     D.sectors.features.forEach((f) => {
       ringsOf(f.geometry).forEach((ring) => drawLine(ring, sectorColor, 1.2, [6, 5]));
     });
     D.sectors.features.forEach((f) => {
-      const { minLon, minLat, maxLon, maxLat } = sectorBBox(f);
+      const { minLon, minLat, maxLon, maxLat } = polygonBBox(f);
       const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
       const code = f.properties.PREFIX;
       ctx.font = "600 11px 'IBM Plex Mono', monospace";
@@ -332,7 +309,7 @@
   function lockToSectorCode(code) {
     const feature = D.sectors.features.find((f) => f.properties.PREFIX === code);
     if (!feature) return;
-    const { minLon, minLat, maxLon, maxLat } = sectorBBox(feature);
+    const { minLon, minLat, maxLon, maxLat } = polygonBBox(feature);
     const c1 = toWorld(minLon, maxLat), c2 = toWorld(maxLon, minLat);
     const bx0 = Math.min(c1.wx, c2.wx) * fitScale + fitOffX;
     const bx1 = Math.max(c1.wx, c2.wx) * fitScale + fitOffX;
@@ -363,6 +340,59 @@
       lockToSectorCode(btn.dataset.sector);
     });
   });
+
+  // ---------------------------------------------------------------------
+  // NEIGHBORHOODS + LANDMARKS
+  // ---------------------------------------------------------------------
+  // Real Portland data, same honesty standard as sectors: neighborhoods
+  // from Public/Boundaries/MapServer/1 (125 official boundaries, see
+  // fetch_neighborhoods.py); landmarks is hospitals only from
+  // Public_Safety_Places/MapServer/2 (see fetch_landmarks.py's header
+  // comment for why bridges were investigated and dropped). Both are
+  // secondary reference layers, off by default, drawn at lower visual
+  // weight than sectors (thinner lines, no expand-on-first-show) since
+  // sectors already own the "primary geography" role.
+
+  function drawNeighborhoods() {
+    const lineColor = "rgba(140,150,200,0.35)";
+    D.neighborhoods.features.forEach((f) => {
+      ringsOf(f.geometry).forEach((ring) => drawLine(ring, lineColor, 0.8, [3, 4]));
+    });
+    D.neighborhoods.features.forEach((f) => {
+      const { minLon, minLat, maxLon, maxLat } = polygonBBox(f);
+      const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
+      const name = f.properties.NAME;
+      if (!name) return;
+      ctx.font = "500 9px 'IBM Plex Mono', monospace";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillStyle = "rgba(170,178,210,0.75)";
+      ctx.fillText(name, x, y);
+    });
+  }
+
+  function drawLandmarks() {
+    D.landmarks.features.forEach((f) => {
+      const [lon, lat] = f.geometry.coordinates;
+      const { x, y } = toScreen(lon, lat);
+      // Plus/cross glyph -- distinct shape from every other marker on the
+      // map (stations/FDC/gates/blocked-streets all use different shapes
+      // already; color + shape pairing, never color alone).
+      ctx.strokeStyle = "#E85EA0";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
+      ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+      ctx.stroke();
+      if (f.properties.name) {
+        ctx.font = "500 9px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "top";
+        ctx.fillStyle = "rgba(232,94,160,0.85)";
+        ctx.fillText(f.properties.name, x, y + 6);
+      }
+    });
+  }
 
   // ---------------------------------------------------------------------
   // RENDERING
@@ -513,7 +543,9 @@
 
     if (layerState.water) drawPolygonLayer(D.water, "rgba(76,140,168,0.35)", "rgba(76,140,168,0.6)", 1);
     if (layerState.boundary) drawPolygonLayer(D.boundary, "rgba(79,143,99,0.06)", "rgba(79,143,99,0.8)", 1.4);
+    if (layerState.neighborhoods) drawNeighborhoods();
     if (layerState.sectors) drawSectors();
+    if (layerState.landmarks) drawLandmarks();
     if (layerState.firstDue) drawFirstDue();
     if (layerState.fdc) drawPoints(D.fdc, "square", "#1A9CA6", 3.4);
     if (layerState.lockedGates) drawPoints(D.lockedGates, "triangle", "#FFA82E", 3.6);
@@ -550,6 +582,86 @@
     } else {
       drawStations();
     }
+
+    drawScaleBar();
+    drawNorthArrow();
+  }
+
+  // ---------------------------------------------------------------------
+  // SCALE BAR + NORTH ARROW
+  // ---------------------------------------------------------------------
+  // Always-on cartographic chrome (not a toggleable layer -- these are
+  // wayfinding elements, not data). DESIGN_BRIEF.md requires both on any
+  // exported view; the live interactive map had neither until now.
+  // Bottom-left, stacked just above the existing DOM coord-readout pill
+  // (styles.css .coord-readout, left:10px/bottom:10px) so they don't
+  // overlap it.
+
+  // "Nice" round distance (1/2/5 x a power of ten) closest to a target
+  // real-world span, in miles -- standard scale-bar algorithm.
+  function niceMiles(targetMiles) {
+    if (targetMiles <= 0) return 0.1;
+    const magnitude = Math.pow(10, Math.floor(Math.log10(targetMiles)));
+    const steps = [1, 2, 5, 10];
+    let best = steps[0] * magnitude;
+    steps.forEach((s) => {
+      if (Math.abs(s * magnitude - targetMiles) < Math.abs(best - targetMiles)) best = s * magnitude;
+    });
+    return best;
+  }
+
+  // World units here are latitude-degree-equivalents (toWorld's latCorr
+  // normalizes longitude to the same scale as latitude) -- 1 degree of
+  // latitude is ~69.0 statute miles, a constant good to a fraction of a
+  // percent at any longitude once that correction's applied.
+  const MILES_PER_WORLD_UNIT = 69.0;
+
+  function drawScaleBar() {
+    const pxPerWorldUnit = fitScale * view.zoom;
+    const pxPerMile = pxPerWorldUnit / MILES_PER_WORLD_UNIT;
+    if (!isFinite(pxPerMile) || pxPerMile <= 0) return;
+    const targetPx = 90;
+    const miles = niceMiles(targetPx / pxPerMile);
+    const barPx = miles * pxPerMile;
+    const label = miles < 1 ? `${(miles * 5280).toFixed(0)} ft` : `${miles} mi`;
+
+    const x0 = 14, y = ch - 46;
+    ctx.save();
+    ctx.strokeStyle = "rgba(232,237,233,0.85)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x0, y); ctx.lineTo(x0 + barPx, y);
+    ctx.moveTo(x0, y - 4); ctx.lineTo(x0, y + 4);
+    ctx.moveTo(x0 + barPx, y - 4); ctx.lineTo(x0 + barPx, y + 4);
+    ctx.stroke();
+    ctx.font = "500 10px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "bottom";
+    ctx.fillStyle = "rgba(232,237,233,0.85)";
+    ctx.fillText(label, x0, y - 6);
+    ctx.restore();
+  }
+
+  // Projection is always north-up (no rotation anywhere in the pan/zoom
+  // code), so this is a static glyph -- no bearing math needed.
+  function drawNorthArrow() {
+    const x = 14, yTop = ch - 100, yBottom = ch - 76;
+    ctx.save();
+    ctx.strokeStyle = "rgba(232,237,233,0.85)";
+    ctx.fillStyle = "rgba(232,237,233,0.85)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(x, yBottom); ctx.lineTo(x, yTop + 6);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x, yTop); ctx.lineTo(x - 4, yTop + 8); ctx.lineTo(x + 4, yTop + 8);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "600 10px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "bottom";
+    ctx.fillText("N", x, yTop - 2);
+    ctx.restore();
   }
 
   // ---------------------------------------------------------------------
@@ -760,29 +872,14 @@
     }
   }
 
-  // ---------------------------------------------------------------------
-  // SHUFFLE BAG
-  // ---------------------------------------------------------------------
-
-  function makeBag(items) {
-    let pool = [];
-    function refill() {
-      pool = [...items];
-      for (let i = pool.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [pool[i], pool[j]] = [pool[j], pool[i]];
-      }
-    }
-    refill();
-    return { next() { if (pool.length === 0) refill(); return pool.pop(); } };
-  }
+  // Shuffle bag (makeShuffleBag) now lives in geometry.js.
 
   // ---------------------------------------------------------------------
   // MODE: FLASHCARD
   // ---------------------------------------------------------------------
 
   const readoutEl = document.getElementById("readout");
-  const flashBag = makeBag(STATION_NUMBERS);
+  const flashBag = makeShuffleBag(STATION_NUMBERS);
   const flashState = { current: null, answered: false, revealNumber: null, revealColor: null };
 
   function flashChoices(correctNum) {
@@ -897,7 +994,7 @@
   // MODE: BLIND MAP
   // ---------------------------------------------------------------------
 
-  const blindBag = makeBag(STATION_NUMBERS);
+  const blindBag = makeShuffleBag(STATION_NUMBERS);
   const blindState = { current: null, answered: false, revealNumber: null, wrongPoint: null };
   const blindControls = document.getElementById("blindControls");
   const blindShowNumbersInput = document.getElementById("blindShowNumbers");

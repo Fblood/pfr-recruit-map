@@ -258,6 +258,23 @@ button {
   background: none; box-shadow: none;
   align-self: center;
 }
+.swatch-neighborhood {
+  width: 14px; height: 0; border-radius: 0;
+  border-top: 1px dotted #8C96C8;
+  background: none; box-shadow: none;
+  align-self: center;
+}
+.swatch-landmark {
+  width: 11px; height: 11px;
+  border-radius: 0;
+  background: none; box-shadow: none;
+  position: relative;
+}
+.swatch-landmark::before, .swatch-landmark::after {
+  content: ""; position: absolute; background: #E85EA0;
+}
+.swatch-landmark::before { left: 0; right: 0; top: 5px; height: 1.5px; }
+.swatch-landmark::after { top: 0; bottom: 0; left: 5px; width: 1.5px; }
 
 .sector-buttons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
 .sector-buttons button {
