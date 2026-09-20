@@ -57,6 +57,33 @@ function makeShuffleBag(items) {
   };
 }
 
+// True if two {x,y,w,h} boxes overlap, treating each as `pad` px larger.
+function boxesOverlap(a, b, pad = 0) {
+  return a.x < b.x + b.w + pad && a.x + a.w + pad > b.x &&
+         a.y < b.y + b.h + pad && a.y + a.h + pad > b.y;
+}
+
+// Priority-based label collision, the technique map renderers use to hide
+// clutter: place labels from highest to lowest priority and drop any label
+// whose box overlaps one already placed. As the view zooms in there is more
+// room, so more labels win a spot -- with no per-label zoom thresholds.
+//   candidates: [{ priority, box:{x,y,w,h}, ignoreObstacles? }]
+//   obstacles:  [{x,y,w,h}] fixed things labels must avoid (markers)
+// Ties keep input order, so the result is stable frame to frame (no flicker
+// while panning). Returns the accepted candidates, highest priority first.
+function placeLabels(candidates, obstacles = [], pad = 2) {
+  const placed = [];
+  candidates
+    .map((c, i) => ({ c, i }))
+    .sort((a, b) => b.c.priority - a.c.priority || a.i - b.i)
+    .forEach(({ c }) => {
+      if (placed.some((p) => boxesOverlap(c.box, p.box, pad))) return;
+      if (!c.ignoreObstacles && obstacles.some((o) => boxesOverlap(c.box, o, pad))) return;
+      placed.push(c);
+    });
+  return placed;
+}
+
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { ringsOf, polygonBBox, clampAxis, makeShuffleBag };
+  module.exports = { ringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels };
 }

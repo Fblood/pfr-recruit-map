@@ -56,7 +56,11 @@ button {
 }
 
 .console {
-  min-height: 100vh;
+  /* Exactly the window, never taller: the map fills what's left and the
+     canvas re-fits on any resize (ResizeObserver in app.js). dvh tracks
+     the mobile browser bar; vh is the fallback. */
+  height: 100vh;
+  height: 100dvh;
   display: flex;
   flex-direction: column;
   background: var(--panel);
@@ -202,6 +206,7 @@ button {
   flex: 1;
   display: grid;
   grid-template-columns: 1fr 230px;
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
 }
 
@@ -336,11 +341,12 @@ button {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
+  overflow-y: auto; /* only kicks in on very short windows */
 }
 .screen {
   position: relative;
-  flex: 1;
-  min-height: 320px;
+  flex: 1 1 0;
+  min-height: 160px;
   background: var(--screen);
   margin: 14px 14px 0;
   border-radius: 6px;
@@ -648,7 +654,10 @@ button {
   /* The badge is a required disclosure (DESIGN_BRIEF.md) — must reflow
      cleanly at narrow widths, never clip or get pushed off-screen. */
   .topbar { flex-wrap: wrap; row-gap: 8px; }
-  .layout { grid-template-columns: 1fr; grid-template-rows: auto auto; }
+  /* The first screenful is a complete app view (chips, map, readout) that
+     fills the window; key and score sit below and scroll into view. */
+  .layout { display: flex; flex-direction: column; overflow-y: auto; }
+  .screen-wrap { flex: 0 0 auto; min-height: 100%; overflow: visible; }
   .side-panel {
     border-left: none;
     border-top: 1px solid var(--panel-line);
@@ -664,8 +673,8 @@ button {
   /* Smallest label tier (eyebrows, rail labels) gets a touch more size on
      mobile — real screen-legibility floor, not just a desktop scale-down. */
   .brand-eyebrow, .rail-label, .card-eyebrow, .badge { font-size: 11.5px; }
-  .screen { min-height: 340px; margin: 10px 10px 0; }
-  .readout { margin: 10px; }
+  .screen { min-height: 200px; margin: 10px 10px 0; }
+  .readout { margin: 10px; min-height: 84px; padding: 12px 16px; }
   .choices { grid-template-columns: repeat(2, 1fr); }
 }
 
@@ -676,4 +685,22 @@ button {
 :focus-visible {
   outline: 2px solid var(--amber);
   outline-offset: 2px;
+}
+
+/* Embedded in the Recruit Hub: the hub already shows the brand, the clock
+   is redundant, and the hub's own footer carries the unofficial-status
+   disclosure -- hide the duplicate chrome so the map gets the height. */
+html.is-embedded .topbar,
+html.is-embedded .statusbar { display: none; }
+
+/* Short windows (small laptops, phones in landscape): tighten the chrome so
+   the map keeps as much of the height as possible. */
+@media (max-height: 720px) {
+  .topbar { padding: 6px 20px; }
+  .brand-text h1 { font-size: 1.25rem; }
+  .mode-strip { padding: 6px 20px; }
+  .layer-bar { margin-top: 8px; }
+  .screen { margin-top: 0; }
+  .readout { min-height: 64px; margin: 8px 14px; padding: 8px 16px; }
+  .statusbar { padding: 6px 20px; }
 }

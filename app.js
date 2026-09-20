@@ -145,21 +145,10 @@
   }
   new ResizeObserver(resizeCanvas).observe(screenEl);
 
-  // When embedded (e.g. in the Recruit Hub's iframe), report real content
-  // height to the parent so it can size the iframe to exactly fit — no
-  // guessed min-height, no inner scrollbar unless the parent window
-  // itself is genuinely too short to show it.
-  if (window.parent !== window) {
-    const consoleEl = document.querySelector(".console");
-    const reportHeight = () => {
-      window.parent.postMessage(
-        { type: "pfr-map:height", height: consoleEl.scrollHeight },
-        "*"
-      );
-    };
-    new ResizeObserver(reportHeight).observe(consoleEl);
-    reportHeight();
-  }
+  // When embedded in the Recruit Hub the hub sizes this frame from the
+  // window (an app-shell layout), and index.html tags <html> with
+  // .is-embedded so the duplicate chrome is hidden. Nothing to report --
+  // the map's own layout fills whatever height it is given.
 
   // ---------------------------------------------------------------------
   // PAN / ZOOM INTERACTION
@@ -254,6 +243,56 @@
   });
 
   // ---------------------------------------------------------------------
+  // LABEL COLLISION -- labels are queued while layers draw, then placed by
+  // priority (geometry.js placeLabels) so clutter thins itself out.
+  // ---------------------------------------------------------------------
+  let labelQueue = [];
+  let markerObstacles = [];
+
+  function queueLabel(o) {
+    ctx.font = o.font;
+    const w = ctx.measureText(o.text).width + (o.padX || 0) * 2;
+    const h = o.h || 12;
+    const top = o.baseline === "top" ? o.y : o.y - h / 2;
+    const box = { x: o.x - w / 2, y: top, w, h };
+    // Skip labels that would be clipped by the canvas edge, not just ones fully off-screen.
+    if (box.x < 2 || box.y < 2 || box.x + box.w > cw - 2 || box.y + box.h > ch - 2) return;
+    labelQueue.push({ ...o, box });
+  }
+
+  function stationObstacles() {
+    return D.stations.features.map((f) => {
+      const { x, y } = toScreen(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+      return { x: x - 8, y: y - 10, w: 16, h: 18 };
+    });
+  }
+
+  // On-canvas controls no label may sit under: zoom buttons (top right),
+  // north arrow + scale bar + coordinate readout (bottom left).
+  function hudBoxes() {
+    return [
+      { x: cw - 64, y: 0, w: 64, h: 170 },
+      { x: 0, y: ch - 108, w: 150, h: 108 },
+    ];
+  }
+
+  function flushLabels() {
+    const obstacles = stationObstacles().concat(markerObstacles);
+    const hud = hudBoxes();
+    const usable = labelQueue.filter((l) => !hud.some((h) => boxesOverlap(l.box, h, 2)));
+    placeLabels(usable, obstacles, 2).forEach((l) => {
+      ctx.font = l.font;
+      ctx.textAlign = "center";
+      ctx.textBaseline = l.baseline;
+      if (l.bg) { ctx.fillStyle = l.bg; ctx.fillRect(l.box.x, l.box.y, l.box.w, l.box.h); }
+      ctx.fillStyle = l.color;
+      ctx.fillText(l.text, l.x, l.y);
+    });
+    labelQueue = [];
+    markerObstacles = [];
+  }
+
+  // ---------------------------------------------------------------------
   // SECTORS + LOCK-TO-SECTOR
   // ---------------------------------------------------------------------
   // Real Portland "Administrative Sextants" data (City of Portland ArcGIS,
@@ -272,15 +311,14 @@
       const { minLon, minLat, maxLon, maxLat } = polygonBBox(f);
       const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
       const code = f.properties.PREFIX;
-      ctx.font = "600 11px 'IBM Plex Mono', monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      const label = code + (sectorLabelsExpanded ? ` — ${SECTOR_FULL_NAME[code]}` : "");
-      const w = ctx.measureText(label).width;
-      ctx.fillStyle = "rgba(10,14,15,0.6)";
-      ctx.fillRect(x - w / 2 - 4, y - 8, w + 8, 16);
-      ctx.fillStyle = "rgba(180,214,192,0.9)";
-      ctx.fillText(label, x, y);
+      // Highest priority: sectors are the primary geography. They are drawn
+      // beneath stations, so they may sit over station markers.
+      queueLabel({
+        priority: 100, x, y, ignoreObstacles: true,
+        text: code + (sectorLabelsExpanded ? ` — ${SECTOR_FULL_NAME[code]}` : ""),
+        font: "600 11px 'IBM Plex Mono', monospace", color: "rgba(180,214,192,0.9)",
+        baseline: "middle", bg: "rgba(10,14,15,0.6)", padX: 4, h: 16,
+      });
     });
   }
 
@@ -358,25 +396,38 @@
   // weight than sectors (thinner lines, no expand-on-first-show) since
   // sectors already own the "primary geography" role.
 
-  const NEIGHBORHOOD_LABEL_ZOOM = 2.5;
-  const HOSPITAL_LABEL_ZOOM = 3;
+  // Below this zoom the dotted boundaries alone read better than any names.
+  const NEIGHBORHOOD_LABEL_ZOOM = 1.6;
+
+  // Bigger neighborhoods outrank smaller ones when labels compete for space
+  // (bbox area as a cheap size proxy), so the labels you keep are the ones
+  // that describe the most ground. Computed once.
+  const neighborhoodPriority = new Map();
+  (function rankNeighborhoods() {
+    const areas = D.neighborhoods.features.map((f) => {
+      const b = polygonBBox(f);
+      return (b.maxLon - b.minLon) * (b.maxLat - b.minLat);
+    });
+    const max = Math.max(...areas) || 1;
+    D.neighborhoods.features.forEach((f, i) => neighborhoodPriority.set(f, 30 + (areas[i] / max) * 20));
+  })();
 
   function drawNeighborhoods() {
     const lineColor = "rgba(140,150,200,0.35)";
     D.neighborhoods.features.forEach((f) => {
       ringsOf(f.geometry).forEach((ring) => drawLine(ring, lineColor, 0.8, [3, 4]));
     });
+    if (view.zoom < NEIGHBORHOOD_LABEL_ZOOM) return;
     D.neighborhoods.features.forEach((f) => {
+      const name = f.properties.NAME;
+      if (!name) return;
       const { minLon, minLat, maxLon, maxLat } = polygonBBox(f);
       const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
-      const name = f.properties.NAME;
-      // 125 labels collide at city scale; show them once zoomed in.
-      if (!name || view.zoom < NEIGHBORHOOD_LABEL_ZOOM) return;
-      ctx.font = "500 9px 'IBM Plex Mono', monospace";
-      ctx.textAlign = "center";
-      ctx.textBaseline = "middle";
-      ctx.fillStyle = "rgba(170,178,210,0.75)";
-      ctx.fillText(name, x, y);
+      queueLabel({
+        priority: neighborhoodPriority.get(f), x, y, text: name,
+        font: "500 9px 'IBM Plex Mono', monospace", color: "rgba(170,178,210,0.8)",
+        baseline: "middle", h: 11,
+      });
     });
   }
 
@@ -393,14 +444,15 @@
       ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
       ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
       ctx.stroke();
-      // Long hospital names overlap each other and the stations at city scale;
-      // the cross marker always shows, the name appears once zoomed in.
-      if (f.properties.name && view.zoom >= HOSPITAL_LABEL_ZOOM) {
-        ctx.font = "500 9px 'IBM Plex Mono', monospace";
-        ctx.textAlign = "center";
-        ctx.textBaseline = "top";
-        ctx.fillStyle = "rgba(232,94,160,0.85)";
-        ctx.fillText(f.properties.name, x, y + 6);
+      // The cross marker always shows and blocks other labels; the name is
+      // queued and only appears where collision leaves it room.
+      markerObstacles.push({ x: x - 4, y: y - 4, w: 8, h: 8 });
+      if (f.properties.name) {
+        queueLabel({
+          priority: 60, x, y: y + 8, text: f.properties.name,
+          font: "500 9px 'IBM Plex Mono', monospace", color: "rgba(232,94,160,0.9)",
+          baseline: "top", h: 11,
+        });
       }
     });
   }
@@ -550,6 +602,8 @@
   function renderNow() {
     if (!cw || !ch) return;
     ctx.clearRect(0, 0, cw, ch);
+    labelQueue = [];
+    markerObstacles = [];
     repositionPopup();
 
     if (layerState.water) drawPolygonLayer(D.water, "rgba(76,140,168,0.35)", "rgba(76,140,168,0.6)", 1);
@@ -561,6 +615,8 @@
     if (layerState.fdc) drawPoints(D.fdc, "square", "#1A9CA6", 3.4);
     if (layerState.lockedGates) drawPoints(D.lockedGates, "triangle", "#FFA82E", 3.6);
     if (layerState.blockedStreets) drawPoints(D.blockedStreets, "diamond", "#D6451E", 3.8);
+
+    flushLabels();
 
     if (currentMode === "route") {
       const fc = currentRouteMode === "geographic" ? D.routeGeographic : D.routeNumeric;

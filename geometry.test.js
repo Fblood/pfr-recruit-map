@@ -1,5 +1,5 @@
 const assert = require("node:assert");
-const { ringsOf, polygonBBox, clampAxis, makeShuffleBag } = require("./geometry.js");
+const { ringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels } = require("./geometry.js");
 
 // --- ringsOf: Polygon vs MultiPolygon vs missing geometry ---
 const polyRing = [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]];
@@ -53,5 +53,40 @@ const secondPass = new Set();
 for (let i = 0; i < items.length; i++) secondPass.add(bag.next());
 assert.deepStrictEqual([...secondPass].sort(), [...items].sort(), "second pass (after reshuffle) also covers every item exactly once");
 console.log("PASS: makeShuffleBag draws without repetition until exhausted, then reshuffles");
+
+// --- boxesOverlap: overlap, touching, apart, and padding ---
+const A = { x: 0, y: 0, w: 10, h: 10 };
+assert.strictEqual(boxesOverlap(A, { x: 5, y: 5, w: 10, h: 10 }), true, "overlapping boxes");
+assert.strictEqual(boxesOverlap(A, { x: 10, y: 0, w: 10, h: 10 }), false, "edge-touching boxes do not overlap");
+assert.strictEqual(boxesOverlap(A, { x: 30, y: 30, w: 5, h: 5 }), false, "distant boxes");
+assert.strictEqual(boxesOverlap(A, { x: 11, y: 0, w: 10, h: 10 }, 2), true, "padding closes a 1px gap");
+console.log("PASS: boxesOverlap handles overlap, touching, distance, and padding");
+
+// --- placeLabels: highest priority wins a contested spot ---
+const lo = { id: "lo", priority: 10, box: { x: 0, y: 0, w: 20, h: 10 } };
+const hi = { id: "hi", priority: 90, box: { x: 5, y: 0, w: 20, h: 10 } };
+const far = { id: "far", priority: 5, box: { x: 100, y: 100, w: 20, h: 10 } };
+const out = placeLabels([lo, hi, far]);
+assert.deepStrictEqual(out.map((l) => l.id), ["hi", "far"], "high priority beats low; non-overlapping low still shown");
+console.log("PASS: placeLabels keeps the higher-priority label and drops the one it collides with");
+
+// --- ties are stable: input order decides, every time ---
+const t1 = { id: "t1", priority: 50, box: { x: 0, y: 0, w: 20, h: 10 } };
+const t2 = { id: "t2", priority: 50, box: { x: 10, y: 0, w: 20, h: 10 } };
+for (let i = 0; i < 5; i++) assert.deepStrictEqual(placeLabels([t1, t2]).map((l) => l.id), ["t1"]);
+assert.deepStrictEqual(placeLabels([t2, t1]).map((l) => l.id), ["t2"]);
+console.log("PASS: equal priorities resolve by input order (stable, no flicker)");
+
+// --- obstacles block labels, unless the label opts out ---
+const marker = { x: 0, y: 0, w: 12, h: 12 };
+const nearMarker = { id: "n", priority: 50, box: { x: 8, y: 0, w: 20, h: 10 } };
+assert.strictEqual(placeLabels([nearMarker], [marker]).length, 0, "label overlapping a marker is dropped");
+assert.strictEqual(placeLabels([{ ...nearMarker, ignoreObstacles: true }], [marker]).length, 1, "ignoreObstacles labels stay");
+console.log("PASS: markers block labels unless the label ignores obstacles");
+
+// --- more room means more labels: shrinking the same boxes lets more through ---
+const many = (w) => Array.from({ length: 8 }, (_, i) => ({ priority: 8 - i, box: { x: i * 15, y: 0, w, h: 10 } }));
+assert.ok(placeLabels(many(10)).length > placeLabels(many(40)).length, "narrower labels (more zoom room) => more placed");
+console.log("PASS: more room places more labels");
 
 console.log("\nAll geometry checks passed.");
