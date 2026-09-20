@@ -641,6 +641,9 @@ button {
    horizontal-scroll strip — a real reposition for mobile, not just a
    smaller version of the desktop sidebar. */
 @media (max-width: 860px) {
+  /* Touch targets: mode tabs and score reset were 37px / 29px tall. */
+  .mode-btn, .reset-btn { min-height: 44px; }
+  .statusbar { font-size: 11.5px; }
   .layer-bar { margin: 10px 10px 0; }
   /* The badge is a required disclosure (DESIGN_BRIEF.md) — must reflow
      cleanly at narrow widths, never clip or get pushed off-screen. */
@@ -661,7 +664,7 @@ button {
   /* Smallest label tier (eyebrows, rail labels) gets a touch more size on
      mobile — real screen-legibility floor, not just a desktop scale-down. */
   .brand-eyebrow, .rail-label, .card-eyebrow, .badge { font-size: 11.5px; }
-  .screen { min-height: 260px; margin: 10px 10px 0; }
+  .screen { min-height: 340px; margin: 10px 10px 0; }
   .readout { margin: 10px; }
   .choices { grid-template-columns: repeat(2, 1fr); }
 }

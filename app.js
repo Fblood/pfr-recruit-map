@@ -358,6 +358,9 @@
   // weight than sectors (thinner lines, no expand-on-first-show) since
   // sectors already own the "primary geography" role.
 
+  const NEIGHBORHOOD_LABEL_ZOOM = 2.5;
+  const HOSPITAL_LABEL_ZOOM = 3;
+
   function drawNeighborhoods() {
     const lineColor = "rgba(140,150,200,0.35)";
     D.neighborhoods.features.forEach((f) => {
@@ -367,7 +370,8 @@
       const { minLon, minLat, maxLon, maxLat } = polygonBBox(f);
       const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
       const name = f.properties.NAME;
-      if (!name) return;
+      // 125 labels collide at city scale; show them once zoomed in.
+      if (!name || view.zoom < NEIGHBORHOOD_LABEL_ZOOM) return;
       ctx.font = "500 9px 'IBM Plex Mono', monospace";
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
@@ -389,7 +393,9 @@
       ctx.moveTo(x - 4, y); ctx.lineTo(x + 4, y);
       ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
       ctx.stroke();
-      if (f.properties.name) {
+      // Long hospital names overlap each other and the stations at city scale;
+      // the cross marker always shows, the name appears once zoomed in.
+      if (f.properties.name && view.zoom >= HOSPITAL_LABEL_ZOOM) {
         ctx.font = "500 9px 'IBM Plex Mono', monospace";
         ctx.textAlign = "center";
         ctx.textBaseline = "top";
