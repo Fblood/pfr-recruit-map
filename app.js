@@ -240,10 +240,15 @@
   // ---------------------------------------------------------------------
 
   const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false, sectors: false, neighborhoods: false, landmarks: false };
-  document.querySelectorAll("#layerList input[data-layer]").forEach((input) => {
-    input.addEventListener("change", () => {
-      layerState[input.dataset.layer] = input.checked;
-      if (input.dataset.layer === "sectors") updateSectorControlsVisibility();
+  // Layer chips (the bar above the map). layerState is the single source of
+  // truth; each chip's aria-pressed is synced from it at startup and on click.
+  document.querySelectorAll("#layerChips button[data-layer]").forEach((btn) => {
+    const key = btn.dataset.layer;
+    btn.setAttribute("aria-pressed", String(!!layerState[key]));
+    btn.addEventListener("click", () => {
+      layerState[key] = !layerState[key];
+      btn.setAttribute("aria-pressed", String(layerState[key]));
+      if (key === "sectors") updateSectorControlsVisibility();
       render();
     });
   });

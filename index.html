@@ -9,7 +9,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=12">
+<link rel="stylesheet" href="styles.css?v=13">
 </head>
 <body>
 
@@ -52,6 +52,33 @@
     <div class="layout">
 
       <main class="screen-wrap">
+        <div class="layer-bar" role="group" aria-label="Map layers">
+          <div class="layer-chips" id="layerChips">
+            <button type="button" class="layer-chip" data-layer="water" aria-pressed="true" style="--c:#4C8CA8"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 9c2.5 0 2.5-2.5 5-2.5S9.5 9 12 9s2.5-2.5 5-2.5S19.5 9 22 9"/><path d="M2 15c2.5 0 2.5-2.5 5-2.5S9.5 15 12 15s2.5-2.5 5-2.5S19.5 15 22 15"/></svg><span>Water</span></button>
+            <button type="button" class="layer-chip" data-layer="boundary" aria-pressed="true" style="--c:#4F8F63"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9l5-5 8 2 3 7-4 8-9-1-4-6z"/></svg><span>City</span></button>
+            <button type="button" class="layer-chip" data-layer="sectors" aria-pressed="false" style="--c:#4F8F63"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17M3.5 12h17"/></svg><span>Sectors</span></button>
+            <button type="button" class="layer-chip" data-layer="neighborhoods" aria-pressed="false" style="--c:#8C96C8"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span>Neighborhoods</span></button>
+            <button type="button" class="layer-chip" data-layer="firstDue" aria-pressed="false" style="--c:#8A6FBE"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z"/><path d="M12 12l7.5-4.5M12 12v9M12 12L4.5 7.5"/></svg><span>First-Due</span></button>
+            <button type="button" class="layer-chip" data-layer="landmarks" aria-pressed="false" style="--c:#E85EA0"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg><span>Hospitals</span></button>
+            <button type="button" class="layer-chip" data-layer="fdc" aria-pressed="false" style="--c:#1A9CA6"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="8" width="12" height="8" rx="1.5"/><path d="M2 12h4M18 12h4M10 8V5M14 8V5"/></svg><span>FDC</span></button>
+            <button type="button" class="layer-chip" data-layer="lockedGates" aria-pressed="false" style="--c:#FFA82E"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked Gates</span></button>
+            <button type="button" class="layer-chip" data-layer="blockedStreets" aria-pressed="false" style="--c:#D6451E"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 12h9"/></svg><span>Blocked Streets</span></button>
+          </div>
+          <div class="layer-sub" id="sectorLockControls" hidden>
+            <label class="toggle-switch" id="lockToSectorLabel">
+              <input type="checkbox" id="lockToSector">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span class="toggle-label">Lock to sector</span>
+            </label>
+            <div class="sector-buttons" id="sectorButtons" role="group" aria-label="Choose a sector to lock to" hidden>
+              <button type="button" data-sector="N" aria-pressed="false">N</button>
+              <button type="button" data-sector="NE" aria-pressed="false">NE</button>
+              <button type="button" data-sector="NW" aria-pressed="false">NW</button>
+              <button type="button" data-sector="SE" aria-pressed="false">SE</button>
+              <button type="button" data-sector="SW" aria-pressed="false">SW</button>
+            </div>
+          </div>
+        </div>
         <div class="screen" id="screen">
           <canvas id="mapCanvas"></canvas>
           <div class="crosshair-x" aria-hidden="true"></div>
@@ -74,36 +101,9 @@
       <aside class="side-panel" id="rail">
 
         <section class="rail-group">
-          <p class="rail-label">Layers</p>
-          <ul class="layer-list" id="layerList">
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="water" checked><span class="swatch swatch-water"></span>Rivers &amp; Water</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="boundary" checked><span class="swatch swatch-boundary"></span>City Boundary</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="firstDue"><span class="swatch swatch-firstdue"></span>First-Due (approx.)</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="fdc"><span class="swatch swatch-fdc"></span>FDC</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="lockedGates"><span class="swatch swatch-gate"></span>Locked Gates</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="blockedStreets"><span class="swatch swatch-blocked"></span>Blocked Streets</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="sectors"><span class="swatch swatch-sector"></span>Sectors (NW/NE/SE/SW/N)</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="neighborhoods"><span class="swatch swatch-neighborhood"></span>Neighborhoods</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="landmarks"><span class="swatch swatch-landmark"></span>Landmarks (Hospitals)</label></li>
-            <li><label class="layer-toggle"><input type="checkbox" data-layer="stations" checked disabled><span class="swatch swatch-station"></span>Stations</label></li>
-          </ul>
+          <p class="rail-label">Key</p>
+          <p class="rail-note"><span class="swatch swatch-station"></span>Station</p>
           <p class="rail-note"><span class="swatch swatch-station-shared"></span>Orange = Station 31, shared with Gresham</p>
-        </section>
-
-        <section class="rail-group" id="sectorLockControls" hidden>
-          <p class="rail-label">Sector Lock</p>
-          <label class="toggle-switch" id="lockToSectorLabel">
-            <input type="checkbox" id="lockToSector">
-            <span class="toggle-track"><span class="toggle-thumb"></span></span>
-            <span class="toggle-label">Lock to sector</span>
-          </label>
-          <div class="sector-buttons" id="sectorButtons" role="group" aria-label="Choose a sector to lock to" hidden>
-            <button type="button" data-sector="N" aria-pressed="false">N</button>
-            <button type="button" data-sector="NE" aria-pressed="false">NE</button>
-            <button type="button" data-sector="NW" aria-pressed="false">NW</button>
-            <button type="button" data-sector="SE" aria-pressed="false">SE</button>
-            <button type="button" data-sector="SW" aria-pressed="false">SW</button>
-          </div>
         </section>
 
         <section class="rail-group score-group">
@@ -129,6 +129,6 @@
 
   <script src="data.js?v=7"></script>
   <script src="geometry.js?v=1"></script>
-  <script src="app.js?v=14"></script>
+  <script src="app.js?v=15"></script>
 </body>
 </html>
