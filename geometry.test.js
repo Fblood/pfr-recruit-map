@@ -1,5 +1,5 @@
 const assert = require("node:assert");
-const { ringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels } = require("./geometry.js");
+const { ringsOf, lineStringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels } = require("./geometry.js");
 
 // --- ringsOf: Polygon vs MultiPolygon vs missing geometry ---
 const polyRing = [[[0, 0], [0, 1], [1, 1], [1, 0], [0, 0]]];
@@ -11,6 +11,17 @@ assert.strictEqual(ringsOf({ type: "MultiPolygon", coordinates: multi }).length,
 assert.deepStrictEqual(ringsOf(null), []);
 assert.deepStrictEqual(ringsOf({ type: "Point", coordinates: [0, 0] }), []);
 console.log("PASS: ringsOf handles Polygon/MultiPolygon/missing geometry");
+
+// --- lineStringsOf: LineString vs MultiLineString vs missing/other geometry ---
+const line = [[0, 0], [1, 1], [2, 0]];
+assert.deepStrictEqual(lineStringsOf({ type: "LineString", coordinates: line }), [line]);
+
+const multiLine = [[[0, 0], [1, 1]], [[5, 5], [6, 6]]];
+assert.deepStrictEqual(lineStringsOf({ type: "MultiLineString", coordinates: multiLine }), multiLine);
+
+assert.deepStrictEqual(lineStringsOf(null), []);
+assert.deepStrictEqual(lineStringsOf({ type: "Point", coordinates: [0, 0] }), []);
+console.log("PASS: lineStringsOf handles LineString/MultiLineString/missing geometry");
 
 // --- polygonBBox: simple square, and a MultiPolygon spanning two rings ---
 const square = { geometry: { type: "Polygon", coordinates: [[[-122.7, 45.5], [-122.7, 45.6], [-122.6, 45.6], [-122.6, 45.5], [-122.7, 45.5]]] } };

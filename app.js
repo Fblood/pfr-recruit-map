@@ -322,6 +322,36 @@
     });
   }
 
+  // Portland's real quadrant-dividing streets -- Burnside splits North from
+  // South, Williams Avenue splits North from Northeast (see docs/decisions.md
+  // 2026-09-25). Real street geometry, not an abstract line: these ARE
+  // several of the sector boundaries above, shown here as the actual streets
+  // a recruit would recognize while driving. Shown only with Sectors, since
+  // that's the layer they explain. Two subtle, reusable tones -- one for
+  // streets running north-south, one for east-west -- meant to extend to
+  // other named streets later without inventing a third color per street.
+  const AXIS_COLOR = { ns: "rgba(155,135,230,0.85)", ew: "rgba(214,120,150,0.85)" };
+
+  function drawDividingStreets() {
+    D.dividingStreets.features.forEach((f) => {
+      const lines = lineStringsOf(f.geometry);
+      const color = AXIS_COLOR[f.properties.axis] || "rgba(200,200,200,0.7)";
+      lines.forEach((coords) => drawLine(coords, color, 2));
+
+      let minLon = Infinity, minLat = Infinity, maxLon = -Infinity, maxLat = -Infinity;
+      lines.forEach((coords) => coords.forEach(([lon, lat]) => {
+        if (lon < minLon) minLon = lon; if (lon > maxLon) maxLon = lon;
+        if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      }));
+      const { x, y } = toScreen((minLon + maxLon) / 2, (minLat + maxLat) / 2);
+      queueLabel({
+        priority: 65, x, y, ignoreObstacles: true,
+        text: f.properties.name, font: "600 10px 'IBM Plex Mono', monospace",
+        color, baseline: "middle", bg: "rgba(10,14,15,0.65)", padX: 4, h: 14,
+      });
+    });
+  }
+
   let sectorLabelsExpanded = false; // short code by default; full name the first time the layer is shown
   let sectorsEverShown = false;
 
@@ -634,6 +664,7 @@
     if (layerState.boundary) drawPolygonLayer(D.boundary, "rgba(79,143,99,0.06)", "rgba(79,143,99,0.8)", 1.4);
     if (layerState.neighborhoods) drawNeighborhoods();
     if (layerState.sectors) drawSectors();
+    if (layerState.sectors) drawDividingStreets();
     if (layerState.landmarks) drawLandmarks();
     if (layerState.firstDue) drawFirstDue();
     if (layerState.fdc) drawPoints(D.fdc, "square", "#1A9CA6", 3.4);

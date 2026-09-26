@@ -8,7 +8,7 @@ import sys
 
 sys.path.append(r"C:\OSGeo4W\apps\qgis\python\plugins")
 
-from qgis.core import QgsApplication, QgsVectorLayer, QgsJsonExporter
+from qgis.core import QgsApplication, QgsVectorLayer, QgsJsonExporter, QgsFeature
 
 qgs = QgsApplication([], False)
 qgs.initQgis()
@@ -41,22 +41,65 @@ def simplify(layer, tolerance_deg):
     )["OUTPUT"]
 
 
+def round_coords(coords, round_dp=6):
+    if isinstance(coords[0], (int, float)):
+        return [round(c, round_dp) for c in coords]
+    return [round_coords(c, round_dp) for c in coords]
+
+
 def to_geojson_dict(layer, keep_fields, round_dp=6):
     exporter = QgsJsonExporter(layer)
     exporter.setIncludeGeometry(True)
     exporter.setIncludeAttributes(True)
     raw = json.loads(exporter.exportFeatures(list(layer.getFeatures())))
 
-    def round_coords(coords):
-        if isinstance(coords[0], (int, float)):
-            return [round(c, round_dp) for c in coords]
-        return [round_coords(c) for c in coords]
-
     features = []
     for feat in raw["features"]:
         props = {k: v for k, v in feat["properties"].items() if k in keep_fields}
         geom = feat["geometry"]
-        geom["coordinates"] = round_coords(geom["coordinates"])
+        geom["coordinates"] = round_coords(geom["coordinates"], round_dp)
+        features.append({"type": "Feature", "properties": props, "geometry": geom})
+    return {"type": "FeatureCollection", "features": features}
+
+
+def named_streets_dict(layer, name_map, round_dp=6):
+    # Pulls just the named segments in name_map (FULLNAME -> {name, axis}) out
+    # of a big centerline layer -- e.g. Burnside is ~240 separate block-length
+    # segments in the source data. Dissolving them by name first collapses
+    # each street down to one MultiLineString feature instead of shipping
+    # hundreds of tiny GeoJSON Feature wrappers (which was most of this
+    # layer's size: ~60KB for 299 raw segments vs a few KB dissolved).
+    matches = [f for f in layer.getFeatures() if f["FULLNAME"] in name_map]
+    if not matches:
+        return {"type": "FeatureCollection", "features": []}
+
+    mem = QgsVectorLayer(
+        f"LineString?crs={layer.crs().authid()}&field=streetName:string&field=axis:string",
+        "tmp_named", "memory",
+    )
+    new_feats = []
+    for f in matches:
+        info = name_map[f["FULLNAME"]]
+        nf = QgsFeature(mem.fields())
+        nf.setGeometry(f.geometry())
+        nf.setAttributes([info["name"], info["axis"]])
+        new_feats.append(nf)
+    mem.dataProvider().addFeatures(new_feats)
+
+    dissolved = processing.run(
+        "native:dissolve", {"INPUT": mem, "FIELD": ["streetName"], "OUTPUT": "memory:dissolved"}
+    )["OUTPUT"]
+
+    exporter = QgsJsonExporter(dissolved)
+    exporter.setIncludeGeometry(True)
+    exporter.setIncludeAttributes(True)
+    raw = json.loads(exporter.exportFeatures(list(dissolved.getFeatures())))
+
+    features = []
+    for feat in raw["features"]:
+        props = {"name": feat["properties"]["streetName"], "axis": feat["properties"]["axis"]}
+        geom = feat["geometry"]
+        geom["coordinates"] = round_coords(geom["coordinates"], round_dp)
         features.append({"type": "Feature", "properties": props, "geometry": geom})
     return {"type": "FeatureCollection", "features": features}
 
@@ -140,6 +183,23 @@ bundle["neighborhoods"] = to_geojson_dict(neighborhoods, {"NAME"})
 # found this session). Points, no simplification needed.
 landmarks = load("landmarks.geojson")
 bundle["landmarks"] = to_geojson_dict(landmarks, {"kind", "name"})
+
+# Portland's real quadrant-dividing streets (see docs/decisions.md 2026-09-25):
+# Burnside splits North from South, Williams Avenue splits North from
+# Northeast. Pulled directly from the city's own street centerline data
+# (streets.geojson, same source compute_cross_streets.py uses) by exact
+# FULLNAME match -- not simplified or redrawn, the real segments as mapped.
+# "axis" tags which of the two highlight tones the renderer uses (see
+# app.js's drawDividingStreets): streets running north-south vs east-west.
+# Shown only when the Sectors layer is on -- these streets ARE several of
+# the sector boundaries, made visible as the real streets they are.
+DIVIDING_STREETS = {
+    "E BURNSIDE ST": {"name": "Burnside Street", "axis": "ew"},
+    "W BURNSIDE ST": {"name": "Burnside Street", "axis": "ew"},
+    "N WILLIAMS AVE": {"name": "Williams Avenue", "axis": "ns"},
+}
+streets = load("streets.geojson")
+bundle["dividingStreets"] = named_streets_dict(streets, DIVIDING_STREETS)
 
 js = "const PFR_DATA = " + json.dumps(bundle, separators=(",", ":")) + ";\n"
 with open(OUT_PATH, "w", encoding="utf-8") as f:

@@ -10,6 +10,17 @@ function ringsOf(geometry) {
   return [];
 }
 
+// Coordinate arrays of any LineString/MultiLineString geometry, one array
+// per line (a MultiLineString's parts stay separate so callers can stroke
+// each one -- unlike a polygon ring, joining them would draw a spurious
+// segment across the gap between disconnected parts).
+function lineStringsOf(geometry) {
+  if (!geometry) return [];
+  if (geometry.type === "LineString") return [geometry.coordinates];
+  if (geometry.type === "MultiLineString") return geometry.coordinates;
+  return [];
+}
+
 // Bounding box (lon/lat) of any Polygon/MultiPolygon feature. Used for
 // sector/neighborhood centroid labels and for fitting the view to a
 // locked sector.
@@ -85,5 +96,5 @@ function placeLabels(candidates, obstacles = [], pad = 2) {
 }
 
 if (typeof module !== "undefined" && module.exports) {
-  module.exports = { ringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels };
+  module.exports = { ringsOf, lineStringsOf, polygonBBox, clampAxis, makeShuffleBag, boxesOverlap, placeLabels };
 }
