@@ -566,8 +566,31 @@
     ctx.fillText(text, x, y - 5);
   }
 
+  // Normal Map mode's station numbers, once zoomed in to roughly sector
+  // scale (locked or not -- this is a zoom threshold, not tied to the lock
+  // toggle). Routed through the same priority/collision queue as sector and
+  // neighborhood labels so numbers thin themselves out in a crowded sector
+  // instead of stacking illegibly. ignoreObstacles: a number sits directly
+  // above its own station's marker on purpose, so it must not be blocked by
+  // that marker's own obstacle box -- it still competes for space against
+  // every OTHER queued label via the normal placeLabels collision pass.
+  const STATION_NUMBER_ZOOM = 2;
+
+  function queueStationNumber(lon, lat, text) {
+    const { x, y } = toScreen(lon, lat);
+    queueLabel({
+      priority: 80, x, y: y - 16, ignoreObstacles: true,
+      text, font: "600 10px 'IBM Plex Mono', monospace", color: "#E8EDE9",
+      baseline: "middle", bg: "rgba(10,14,15,0.75)", padX: 3, h: 12,
+    });
+  }
+
   function drawStations(opts) {
     opts = opts || {};
+    // A locked sector counts as "sector level" outright, regardless of how
+    // much screen room that particular sector's bbox happens to need to fit
+    // (a small sector like NW may lock in well under STATION_NUMBER_ZOOM).
+    const numbersAtZoom = opts.numbersAtSectorZoom && (lockedSector || view.zoom >= STATION_NUMBER_ZOOM);
     D.stations.features.forEach((f) => {
       const [lon, lat] = f.geometry.coordinates;
       if (opts.blind) {
@@ -583,6 +606,7 @@
         color = opts.highlight.get(f.properties.STATION);
       }
       drawPointMarker(lon, lat, v.shape, color, size);
+      if (numbersAtZoom) queueStationNumber(lon, lat, f.properties.STATION);
     });
   }
 
@@ -647,8 +671,15 @@
       if (flashState.revealNumber) highlight.set(flashState.revealNumber, flashState.revealColor);
       drawStations({ highlight });
     } else {
-      drawStations();
+      drawStations({ numbersAtSectorZoom: true });
     }
+
+    // Second flush pass: station numbers are queued above, after the first
+    // flushLabels() call already placed sector/neighborhood/landmark labels
+    // beneath the station markers. Numbers need the markers drawn first (they
+    // sit visually on top of them), so they go through their own pass here --
+    // still the same priority/collision system, just run a beat later.
+    flushLabels();
 
     drawScaleBar();
     drawNorthArrow();
@@ -767,6 +798,16 @@
     return `<p class="popup-sources">Sources: ${links}</p>`;
   }
 
+  // Cross streets are computed (not guessed) from the city's own street
+  // centerline data -- see compute_cross_streets.py. A station with only one
+  // real cross street within range (sparse grid, e.g. industrial areas) shows
+  // just that one rather than padding in a false second street.
+  function crossStreetsHtml(crossStreets) {
+    const streets = crossStreets ? [crossStreets.cross_street_1, crossStreets.cross_street_2].filter(Boolean) : [];
+    if (!streets.length) return `<p class="popup-empty">Cross streets not yet available.</p>`;
+    return `<p class="popup-cross-streets">Cross streets: ${streets.join(" &amp; ")}</p>`;
+  }
+
   function popupPanelContent(hit, tab) {
     const p = hit.properties;
     const profile = p.profile || null;
@@ -775,6 +816,7 @@
       const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
       return `
         <span>${p.ADDRESS}</span>
+        ${crossStreetsHtml(p.crossStreets)}
         <a class="popup-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer">Open in Google Maps &rarr;</a>
       `;
     }

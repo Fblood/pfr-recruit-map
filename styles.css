@@ -583,6 +583,7 @@ button {
 .popup-tab.is-active { color: var(--amber); border-bottom-color: var(--amber); }
 .popup-panel { padding: 0 12px 12px; }
 .popup-panel span { color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; display: block; }
+.popup-cross-streets { margin: 4px 0 0; color: var(--text-dim); font-family: var(--font-mono); font-size: 11.5px; }
 .popup-gmaps {
   display: inline-block;
   margin-top: 8px;

@@ -63,8 +63,26 @@ def to_geojson_dict(layer, keep_fields, round_dp=6):
 
 bundle = {}
 
+# Per-station Info/History content (station_profiles.json, sourced from PF&R's
+# own official station-N pages) and cross streets (cross_streets.json, computed
+# against the city's real street centerline data by compute_cross_streets.py) are
+# both kept as separate files -- not baked into stations.geojson -- so the raw
+# ArcGIS geometry stays untouched and this researched/computed content stays
+# independently traceable and editable. Merged onto each feature's properties here.
+with open(os.path.join(PROJECT_DIR, "station_profiles.json"), encoding="utf-8") as f:
+    station_profiles = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+with open(os.path.join(PROJECT_DIR, "cross_streets.json"), encoding="utf-8") as f:
+    cross_streets = json.load(f)
+
 stations = load("stations.geojson")
-bundle["stations"] = to_geojson_dict(stations, {"STATION", "ADDRESS", "DISTRICT"})
+stations_fc = to_geojson_dict(stations, {"STATION", "ADDRESS", "DISTRICT"})
+for feat in stations_fc["features"]:
+    num = feat["properties"]["STATION"]
+    if num in station_profiles:
+        feat["properties"]["profile"] = station_profiles[num]
+    if num in cross_streets:
+        feat["properties"]["crossStreets"] = cross_streets[num]
+bundle["stations"] = stations_fc
 
 route_geo = load("study_route_geographic.geojson")
 bundle["routeGeographic"] = to_geojson_dict(
