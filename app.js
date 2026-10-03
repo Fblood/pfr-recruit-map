@@ -202,6 +202,25 @@
   }, { passive: false });
   canvas.addEventListener("touchend", () => { pinchDist = null; });
 
+  // Keyboard map control (canvas is focusable): arrows pan, +/- zoom, 0 resets.
+  // Panning step is a fraction of the view so it feels the same at any size.
+  canvas.addEventListener("keydown", (e) => {
+    const step = Math.min(cw, ch) * 0.2;
+    let handled = true;
+    if (e.key === "ArrowLeft") view.panX += step;
+    else if (e.key === "ArrowRight") view.panX -= step;
+    else if (e.key === "ArrowUp") view.panY += step;
+    else if (e.key === "ArrowDown") view.panY -= step;
+    else if (e.key === "+" || e.key === "=") { zoomAt(cw / 2, ch / 2, 1.3); return e.preventDefault(); }
+    else if (e.key === "-" || e.key === "_") { zoomAt(cw / 2, ch / 2, 1 / 1.3); return e.preventDefault(); }
+    else if (e.key === "0") { resetView(); return e.preventDefault(); }
+    else handled = false;
+    if (!handled) return;
+    e.preventDefault();
+    clampPan();
+    render();
+  });
+
   document.getElementById("zoomIn").onclick = () => zoomAt(cw / 2, ch / 2, 1.3);
   document.getElementById("zoomOut").onclick = () => zoomAt(cw / 2, ch / 2, 1 / 1.3);
   document.getElementById("zoomReset").onclick = resetView;

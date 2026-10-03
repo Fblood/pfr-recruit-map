@@ -3,15 +3,17 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0A0E0F">
+<meta name="theme-color" content="#17150F">
 <title>PF&amp;R Recruit MDT</title>
 <meta name="description" content="Interactive study terminal for PF&R Recruit Class 26-04 — station map, flashcards, route walkthroughs, and blind-map drills.">
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="manifest" href="manifest.webmanifest">
 <link rel="preload" href="fonts/ibm-plex-sans.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="fonts/barlow-condensed-700.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="fonts/fonts.css?v=1">
+<link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="fonts/fonts.css?v=2">
 <script src="embed.js"></script>
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=20">
 </head>
 <body>
 
@@ -29,6 +31,7 @@
       </div>
       <div class="topbar-right">
         <span class="clock" id="clock" aria-hidden="true">--:--:--</span>
+        <span class="net-tag" id="netTag" hidden>OFFLINE &middot; saved copy</span>
         <span class="badge">UNOFFICIAL STUDY TOOL</span>
       </div>
     </header>
@@ -44,6 +47,10 @@
         <button class="mode-btn is-active" data-route="geographic">Geographic</button>
         <button class="mode-btn" data-route="numeric">Numeric</button>
       </div>
+      <button type="button" class="list-btn" id="openList">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 6h12M8 12h12M8 18h12M4 6h.01M4 12h.01M4 18h.01"/></svg>
+        <span>Station list</span>
+      </button>
       <label class="toggle-switch" id="blindControls" hidden>
         <input type="checkbox" id="blindShowNumbers">
         <span class="toggle-track"><span class="toggle-thumb"></span></span>
@@ -82,7 +89,7 @@
           </div>
         </div>
         <div class="screen" id="screen">
-          <canvas id="mapCanvas" role="img" aria-label="Interactive map of Portland Fire &amp; Rescue stations. Drag to pan, pinch or use the zoom buttons to zoom, tap a station for its details."></canvas>
+          <canvas id="mapCanvas" tabindex="0" role="img" aria-label="Interactive map of Portland Fire &amp; Rescue stations. Drag to pan, pinch or use the zoom buttons to zoom, tap a station for its details. With a keyboard, arrow keys pan and plus and minus zoom. A text list of all stations is under Station list."></canvas>
           <div class="crosshair-x" aria-hidden="true"></div>
           <div class="scanline" aria-hidden="true"></div>
           <div class="coord-readout" id="coordReadout">LAT -- &middot; LON --</div>
@@ -126,11 +133,37 @@
       <span>Unofficial study resource &mdash; Recruit Class 26-04. Not a PF&amp;R publication.</span>
       <span>Source: City of Portland Fire Bureau MDT data &middot; EPSG:2913 project CRS</span>
     </footer>
+    <details class="legal">
+      <summary>Credits &amp; licenses</summary>
+      <p>Map data: City of Portland, Oregon public GIS data (boundaries, sectors, neighborhoods, streets, water, hospitals), used under the City&rsquo;s terms of use; provided as-is, with no warranty of accuracy. Station and unit information: Portland Fire &amp; Rescue station list (updated 6/8/26) and portland.gov station pages. Fonts: Oswald and IBM Plex Sans / Mono, &copy; their authors, under the SIL Open Font License 1.1. This is a student-made study aid and is not affiliated with or endorsed by Portland Fire &amp; Rescue.</p>
+    </details>
 
   </div>
 
+  <dialog id="listDialog" class="list-dialog" aria-labelledby="listTitle">
+    <header class="list-head">
+      <h2 id="listTitle">Station list</h2>
+      <button type="button" class="list-copy" id="listCopy">Copy list</button>
+      <button type="button" class="list-close" id="listClose" aria-label="Close station list">&times;</button>
+    </header>
+    <div class="list-filters" id="listFilters" role="group" aria-label="Filter by battalion">
+      <button type="button" data-bn="all" aria-pressed="true">All</button>
+      <button type="button" data-bn="1" aria-pressed="false">Bn 1</button>
+      <button type="button" data-bn="2" aria-pressed="false">Bn 2</button>
+      <button type="button" data-bn="3" aria-pressed="false">Bn 3</button>
+      <button type="button" data-bn="4" aria-pressed="false">Bn 4</button>
+      <span class="list-count" id="listCount" aria-live="polite"></span>
+    </div>
+    <div class="list-scroll">
+      <table class="list-table"><caption class="sr-only">PF&amp;R stations with address, cross streets, battalion, neighborhood and unit codes</caption><tbody id="listBody"></tbody></table>
+    </div>
+  </dialog>
+
   <script src="data.js?v=10"></script>
   <script src="geometry.js?v=3"></script>
-  <script src="app.js?v=23"></script>
+  <script src="app.js?v=24"></script>
+  <script src="list.js?v=2"></script>
+  <script src="tabs.js?v=1"></script>
+  <script src="sw-register.js?v=1"></script>
 </body>
 </html>
