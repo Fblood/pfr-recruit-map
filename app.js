@@ -878,7 +878,7 @@
       const [lon, lat] = hit.geometry.coordinates;
       const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
       return `
-        <span>${p.ADDRESS}</span>
+        <span>${p.ADDRESS}${p.addressNote ? ` (${p.addressNote})` : ""}</span>
         ${crossStreetsHtml(p.crossStreets)}
         ${p.battalion ? `<p class="popup-cross-streets">Battalion ${p.battalion}${p.neighborhood ? ` &middot; ${p.neighborhood}` : ""}</p>` : ""}
         <a class="popup-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer">Open in Google Maps &rarr;</a>

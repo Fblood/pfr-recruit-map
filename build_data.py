@@ -142,6 +142,8 @@ for feat in stations_fc["features"]:
         }
         feat["properties"]["battalion"] = o["battalion"]
         feat["properties"]["neighborhood"] = o["neighborhood"]
+        if o.get("address_note"):
+            feat["properties"]["addressNote"] = o["address_note"]
         profile = feat["properties"].setdefault("profile", {})
         profile["units"] = o["units"]
         profile.pop("apparatus", None)  # replaced by units + unitNotes + otherApparatus

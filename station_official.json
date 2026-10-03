@@ -8,7 +8,7 @@
   "6": {"battalion": 2, "neighborhood": "NW Industrial", "cross_streets": ["3600 Block of Front Ave"], "units": ["E6", "FB6"], "unit_notes": {"FB6": "\"The George Williams\""}, "other_apparatus": ["Fire Boat David Campbell (historic, out of service)"]},
   "7": {"battalion": 3, "neighborhood": "Mill Park", "cross_streets": ["SE 122nd Ave", "SE Madison St"], "units": ["E7", "T7", "HM7", "HRC7", "C3"]},
   "8": {"battalion": 2, "neighborhood": "Kenton", "cross_streets": ["N Buffalo St", "N Maryland Ave"], "units": ["T8"], "unit_notes": {"T8": "Quint: ladder equipment plus a 300-gallon water tank"}},
-  "9": {"battalion": 4, "neighborhood": "Hawthorne", "cross_streets": ["SE Cesar E. Chavez Blvd", "SE Market St"], "units": ["E9", "MC9", "C4"]},
+  "9": {"address_note": "Formerly SE 39th Ave", "battalion": 4, "neighborhood": "Hawthorne", "cross_streets": ["SE Cesar E. Chavez Blvd", "SE Market St"], "units": ["E9", "MC9", "C4"]},
   "10": {"battalion": 1, "neighborhood": "Burlingame", "cross_streets": ["SW 4th Ave", "SW Taylors Ferry Rd"], "units": ["T10"], "other_apparatus": ["Engine 10R and Air Unit 10R (reserve)"]},
   "11": {"battalion": 3, "neighborhood": "Lents", "cross_streets": ["SE 92nd Ave", "SE Reedway St"], "units": ["E11", "R11"]},
   "12": {"battalion": 4, "neighborhood": "Sumner", "cross_streets": ["NE 87th Ave", "NE Sandy Blvd"], "units": ["S12", "USAR12"], "unit_notes": {"S12": "Only tillered/articulated crane squad in the world"}},

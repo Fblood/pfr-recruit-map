@@ -14,6 +14,7 @@ D.stations.features.forEach((f) => {
   f.properties.crossStreets = { on_street: old.on_street || null, cross_street_1: c1 || null, cross_street_2: c2 || null };
   f.properties.battalion = o.battalion;
   f.properties.neighborhood = o.neighborhood;
+  if (o.address_note) f.properties.addressNote = o.address_note; else delete f.properties.addressNote;
   // Unit codes + notes replace the older free-text apparatus list so the
   // popup shows one table, not two overlapping lists. Anything the sheet
   // doesn't carry (reserve units, historic boats) lives in other_apparatus.
