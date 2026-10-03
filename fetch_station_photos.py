@@ -23,8 +23,20 @@ CREDIT = "Photo: Portland Fire & Rescue"
 
 
 def find_image(page_html):
-    """Best image URL on a station page, or None. Prefers the page's og:image,
-    then any portland.gov styled image whose name mentions 'exterior'."""
+    """Best image URL on a station page, or None.
+
+    The City's pages offer each photo in several 2:1 sizes (2_1_400w ... 2_1_1600w).
+    The card is ~215px wide, so 800w is sharp on a phone at 3x without the weight
+    of the 1600w original. Falls back to any other styled exterior image, then to
+    the page's og:image (a 1200x630 social crop) as a last resort."""
+    found = re.findall(r'(?:https?://www\.portland\.gov)?/sites/default/files/styles/[^"\'\s>)]+\.(?:jpg|jpeg|png)[^"\'\s>)]*', page_html, re.I)
+    found = [absolute(html.unescape(u)) for u in found]
+    for u in found:
+        if "/2_1_800w/" in u:
+            return u
+    for u in found:
+        if "/2_1_" in u and "exterior" in u.lower():
+            return u
     for pat in (
         r'<meta[^>]+property=["\']og:image["\'][^>]+content=["\']([^"\']+)',
         r'<meta[^>]+content=["\']([^"\']+)["\'][^>]+property=["\']og:image["\']',
@@ -32,11 +44,6 @@ def find_image(page_html):
         m = re.search(pat, page_html, re.I)
         if m:
             return absolute(html.unescape(m.group(1)))
-    found = re.findall(r'(?:https?://www\.portland\.gov)?/sites/default/files/[^"\'\s>)]+\.(?:jpg|jpeg|png)[^"\'\s>)]*', page_html, re.I)
-    found = [absolute(html.unescape(u)) for u in found]
-    for u in found:
-        if "exterior" in u.lower():
-            return u
     return found[0] if found else None
 
 

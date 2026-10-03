@@ -22,9 +22,10 @@ the card just shows without a photo).
     python fetch_station_photos.py     # looks up each station page's image URL; skips stations that have one
     node apply_official.js             # rebuilds data.js
 
-then bump the `data.js` `?v=` in `index.html`. Run it from a machine that can reach portland.gov, and
-eyeball the printed list before committing: it takes each page's `og:image`, which should be the
-exterior shot but is worth checking.
+then bump the `data.js` `?v=` in `index.html`. Run it from a machine that can reach portland.gov. It
+picks the City's 800px-wide 2:1 version of each page's photo (sharp on a phone, ~60 KB), falling back
+to the page's `og:image`; all 31 stations were found and checked on 2026-10-03. If the City replaces a
+photo, re-run it with `--force`.
 
 A station with no `photo` entry looks exactly as before, and a broken URL just hides the photo.
 This README is not deployed (`firebase.json` ignores `*.md`).
