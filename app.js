@@ -967,6 +967,8 @@
     clampPopupToScreen();
   }
 
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopup(); });
+
   popup.addEventListener("click", (e) => {
     const tabBtn = e.target.closest(".popup-tab");
     if (tabBtn) {
@@ -1013,7 +1015,9 @@
   let score = { correct: 0, attempts: 0, streak: 0 };
   try {
     const saved = JSON.parse(localStorage.getItem("pfrmdt_score") || "null");
-    if (saved) score = saved;
+    // Only trust a stored value that has the right shape -- a stray string or
+    // number in storage would otherwise paint "undefined" into the scoreboard.
+    if (saved && ["correct", "attempts", "streak"].every((k) => Number.isFinite(saved[k]))) score = saved;
   } catch (e) { /* ignore corrupt storage */ }
 
   function paintScore() {
