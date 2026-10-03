@@ -117,6 +117,13 @@ with open(os.path.join(PROJECT_DIR, "station_profiles.json"), encoding="utf-8") 
 with open(os.path.join(PROJECT_DIR, "cross_streets.json"), encoding="utf-8") as f:
     cross_streets = json.load(f)
 
+# Official PF&R station sheet (Updated 6/8/26) + district map: cross streets, unit
+# codes, battalion, neighborhood. Overrides the computed cross streets above. Lives
+# in this repo (station_official.json); apply_official.js applies the same merge
+# without QGIS.
+with open(os.path.join(SRC_DIR, "station_official.json"), encoding="utf-8") as f:
+    official = {k: v for k, v in json.load(f).items() if not k.startswith("_")}
+
 stations = load("stations.geojson")
 stations_fc = to_geojson_dict(stations, {"STATION", "ADDRESS", "DISTRICT"})
 for feat in stations_fc["features"]:
@@ -125,6 +132,25 @@ for feat in stations_fc["features"]:
         feat["properties"]["profile"] = station_profiles[num]
     if num in cross_streets:
         feat["properties"]["crossStreets"] = cross_streets[num]
+    if num in official:
+        o = official[num]
+        cs = o["cross_streets"]
+        feat["properties"]["crossStreets"] = {
+            "on_street": feat["properties"].get("crossStreets", {}).get("on_street"),
+            "cross_street_1": cs[0] if cs else None,
+            "cross_street_2": cs[1] if len(cs) > 1 else None,
+        }
+        feat["properties"]["battalion"] = o["battalion"]
+        feat["properties"]["neighborhood"] = o["neighborhood"]
+        if o.get("address_note"):
+            feat["properties"]["addressNote"] = o["address_note"]
+        profile = feat["properties"].setdefault("profile", {})
+        profile["units"] = o["units"]
+        profile.pop("apparatus", None)  # replaced by units + unitNotes + otherApparatus
+        if o.get("unit_notes"):
+            profile["unitNotes"] = o["unit_notes"]
+        if o.get("other_apparatus"):
+            profile["otherApparatus"] = o["other_apparatus"]
 bundle["stations"] = stations_fc
 
 route_geo = load("study_route_geographic.geojson")
