@@ -798,5 +798,7 @@ html.is-embedded .statusbar { display: none; }
 
 /* ---------- Station photo on the card front ---------- */
 .popup-photo { margin: 0 0 10px; background: var(--screen); }
-.popup-photo img { display: block; width: 100%; height: auto; aspect-ratio: 16 / 9; object-fit: cover; }
+.popup-photo img { display: block; width: 100%; height: auto; aspect-ratio: 2 / 1; object-fit: cover; }
 .popup-photo figcaption { padding: 3px 0 0; font-family: var(--font-mono); font-size: 10px; color: var(--text-dim); }
+.popup-photo figcaption a { color: var(--text-dim); }
+.popup-photo figcaption a:hover { color: var(--text); }

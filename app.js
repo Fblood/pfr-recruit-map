@@ -891,14 +891,26 @@
   }
 
   // Station photo on the front of the card, address and cross streets below it.
-  // Only rendered when a station has one (see photos/README.md), so the card
-  // looks exactly as before until photos exist. Fixed 16:9 box so the popup
-  // doesn't jump when the image loads.
+  // A photo is either linked straight from its source page (photo.url -- shown
+  // from portland.gov, nothing copied into this repo) or a local file in
+  // photos/ (photo.file). Only rendered when a station has one, so the card
+  // is unchanged without it; a missing/broken image just disappears (see the
+  // error handler below). The 2:1 box matches the City's own image crops, and
+  // is fixed so the card doesn't jump when the image loads. Credit links back
+  // to the page the photo came from. Sent with no Referer so visitors' pages
+  // aren't announced to the City's server.
   function photoHtml(p) {
-    if (!p.photo || !p.photo.file) return "";
+    const ph = p.photo;
+    const src = ph && (ph.url || ph.file);
+    if (!src) return "";
+    const credit = ph.credit
+      ? (ph.page
+        ? `<a href="${ph.page}" target="_blank" rel="noopener noreferrer">${ph.credit}</a>`
+        : ph.credit)
+      : "";
     return `<figure class="popup-photo">
-      <img src="${p.photo.file}" alt="Station ${p.STATION} exterior" width="16" height="9" loading="lazy" decoding="async">
-      ${p.photo.credit ? `<figcaption>${p.photo.credit}</figcaption>` : ""}
+      <img src="${src}" alt="Station ${p.STATION} exterior" width="2" height="1" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+      ${credit ? `<figcaption>${credit}</figcaption>` : ""}
     </figure>`;
   }
 
