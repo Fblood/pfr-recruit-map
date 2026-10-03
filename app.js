@@ -890,6 +890,30 @@
     return `<p class="popup-cross-streets">Cross streets: ${streets.join(" &amp; ")}</p>`;
   }
 
+  // Station photo on the front of the card, address and cross streets below it.
+  // A photo is either linked straight from its source page (photo.url -- shown
+  // from portland.gov, nothing copied into this repo) or a local file in
+  // photos/ (photo.file). Only rendered when a station has one, so the card
+  // is unchanged without it; a missing/broken image just disappears (see the
+  // error handler below). The 2:1 box matches the City's own image crops, and
+  // is fixed so the card doesn't jump when the image loads. Credit links back
+  // to the page the photo came from. Sent with no Referer so visitors' pages
+  // aren't announced to the City's server.
+  function photoHtml(p) {
+    const ph = p.photo;
+    const src = ph && (ph.url || ph.file);
+    if (!src) return "";
+    const credit = ph.credit
+      ? (ph.page
+        ? `<a href="${ph.page}" target="_blank" rel="noopener noreferrer">${ph.credit}</a>`
+        : ph.credit)
+      : "";
+    return `<figure class="popup-photo">
+      <img src="${src}" alt="Station ${p.STATION} exterior" width="2" height="1" loading="lazy" decoding="async" referrerpolicy="no-referrer">
+      ${credit ? `<figcaption>${credit}</figcaption>` : ""}
+    </figure>`;
+  }
+
   function popupPanelContent(hit, tab) {
     const p = hit.properties;
     const profile = p.profile || null;
@@ -897,6 +921,7 @@
       const [lon, lat] = hit.geometry.coordinates;
       const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
       return `
+        ${photoHtml(p)}
         <span>${p.ADDRESS}${p.addressNote ? ` (${p.addressNote})` : ""}</span>
         ${crossStreetsHtml(p.crossStreets)}
         ${p.battalion ? `<p class="popup-cross-streets">Battalion ${p.battalion}${p.neighborhood ? ` &middot; ${p.neighborhood}` : ""}</p>` : ""}
@@ -948,6 +973,14 @@
 
   function clampPopupToScreen() {
     const screenRect = screenEl.getBoundingClientRect();
+    // On a short phone map the card (now with a photo) can be taller than the
+    // map window itself: cap the body and let it scroll rather than clip it.
+    const panel = popup.querySelector(".popup-panel");
+    if (panel) {
+      panel.style.maxHeight = "none";
+      const chrome = popup.getBoundingClientRect().height - panel.getBoundingClientRect().height;
+      panel.style.maxHeight = Math.max(110, screenRect.height - 14 - chrome) + "px";
+    }
     const popRect = popup.getBoundingClientRect();
     let dx = 0, dy = 0;
     if (popRect.left < screenRect.left) dx = screenRect.left - popRect.left;
@@ -987,6 +1020,16 @@
   }
 
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopup(); });
+
+  // A missing/broken photo just disappears (error events don't bubble, hence
+  // capture); a loaded one changes the card's height, so re-clamp to the screen.
+  popup.addEventListener("error", (e) => {
+    if (e.target.tagName !== "IMG") return;
+    const fig = e.target.closest(".popup-photo");
+    if (fig) fig.remove();
+    clampPopupToScreen();
+  }, true);
+  popup.addEventListener("load", (e) => { if (e.target.tagName === "IMG") clampPopupToScreen(); }, true);
 
   popup.addEventListener("click", (e) => {
     const tabBtn = e.target.closest(".popup-tab");
