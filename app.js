@@ -890,6 +890,18 @@
     return `<p class="popup-cross-streets">Cross streets: ${streets.join(" &amp; ")}</p>`;
   }
 
+  // Station photo on the front of the card, address and cross streets below it.
+  // Only rendered when a station has one (see photos/README.md), so the card
+  // looks exactly as before until photos exist. Fixed 16:9 box so the popup
+  // doesn't jump when the image loads.
+  function photoHtml(p) {
+    if (!p.photo || !p.photo.file) return "";
+    return `<figure class="popup-photo">
+      <img src="${p.photo.file}" alt="Station ${p.STATION} exterior" width="16" height="9" loading="lazy" decoding="async">
+      ${p.photo.credit ? `<figcaption>${p.photo.credit}</figcaption>` : ""}
+    </figure>`;
+  }
+
   function popupPanelContent(hit, tab) {
     const p = hit.properties;
     const profile = p.profile || null;
@@ -897,6 +909,7 @@
       const [lon, lat] = hit.geometry.coordinates;
       const gmapsUrl = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
       return `
+        ${photoHtml(p)}
         <span>${p.ADDRESS}${p.addressNote ? ` (${p.addressNote})` : ""}</span>
         ${crossStreetsHtml(p.crossStreets)}
         ${p.battalion ? `<p class="popup-cross-streets">Battalion ${p.battalion}${p.neighborhood ? ` &middot; ${p.neighborhood}` : ""}</p>` : ""}
@@ -948,6 +961,14 @@
 
   function clampPopupToScreen() {
     const screenRect = screenEl.getBoundingClientRect();
+    // On a short phone map the card (now with a photo) can be taller than the
+    // map window itself: cap the body and let it scroll rather than clip it.
+    const panel = popup.querySelector(".popup-panel");
+    if (panel) {
+      panel.style.maxHeight = "none";
+      const chrome = popup.getBoundingClientRect().height - panel.getBoundingClientRect().height;
+      panel.style.maxHeight = Math.max(110, screenRect.height - 14 - chrome) + "px";
+    }
     const popRect = popup.getBoundingClientRect();
     let dx = 0, dy = 0;
     if (popRect.left < screenRect.left) dx = screenRect.left - popRect.left;
@@ -987,6 +1008,16 @@
   }
 
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closePopup(); });
+
+  // A missing/broken photo just disappears (error events don't bubble, hence
+  // capture); a loaded one changes the card's height, so re-clamp to the screen.
+  popup.addEventListener("error", (e) => {
+    if (e.target.tagName !== "IMG") return;
+    const fig = e.target.closest(".popup-photo");
+    if (fig) fig.remove();
+    clampPopupToScreen();
+  }, true);
+  popup.addEventListener("load", (e) => { if (e.target.tagName === "IMG") clampPopupToScreen(); }, true);
 
   popup.addEventListener("click", (e) => {
     const tabBtn = e.target.closest(".popup-tab");
