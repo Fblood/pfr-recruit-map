@@ -814,6 +814,39 @@
     return `<ul class="popup-list">${items.map((i) => `<li>${i}</li>`).join("")}</ul>`;
   }
 
+  // Official unit codes -> readable type. Prefix order matters (longest first).
+  const UNIT_TYPES = [
+    ["USAR", "Urban Search & Rescue"], ["HRC", "Heavy Rescue"], ["ATV", "ATV"], ["INV", "Investigator"],
+    ["TR", "Trench Rescue"], ["BU", "Brush Unit"], ["UT", "Utility"], ["WT", "Water Tender"],
+    ["FB", "Fire Boat"], ["RB", "Rescue Boat"], ["HS", "Heavy Squad"], ["HM", "Hazmat"],
+    ["RH", "Rehab"], ["MC", "Mobile Command"], ["FU", "Foam Unit"],
+    ["E", "Engine"], ["T", "Truck"], ["S", "Squad"], ["R", "Rescue"], ["C", "Chief"],
+  ];
+
+  function unitType(code) {
+    const t = UNIT_TYPES.find(([prefix]) => code.startsWith(prefix));
+    if (!t) return code;
+    const rest = code.slice(t[0].length).trim();
+    const qty = rest.match(/x(\d+)$/);
+    if (qty) return `${t[1]} (\u00d7${qty[1]})`;
+    return `${t[1]} ${rest}`.trim();
+  }
+
+  // One compact two-column table: code badge | type, with any extra detail
+  // (boat names, apparatus age, specs) stacked underneath. Two columns keep
+  // it readable in the 240px phone popup and it simply gets more room wider.
+  function unitTableHtml(profile) {
+    const units = profile && profile.units;
+    if (!units || !units.length) return `<p class="popup-empty">Not yet available.</p>`;
+    const notes = (profile && profile.unitNotes) || {};
+    const rows = units.map((code) => `
+      <tr>
+        <th scope="row">${code.replace(/x\d+$/, "")}</th>
+        <td>${unitType(code)}${notes[code] ? `<span class="unit-detail">${notes[code]}</span>` : ""}</td>
+      </tr>`).join("");
+    return `<table class="unit-table"><tbody>${rows}</tbody></table>`;
+  }
+
   function crewList(crew) {
     if (crew == null) return null;
     if (typeof crew === "number") return [`${crew} total per shift`];
@@ -853,10 +886,10 @@
     }
     if (tab === "info") {
       return `
-        <p class="popup-field-label">Units (official, 6/8/26)</p>
-        ${listOrPlaceholder(profile && profile.units)}
-        <p class="popup-field-label">Apparatus details</p>
-        ${listOrPlaceholder(profile && profile.apparatus)}
+        <p class="popup-field-label">Apparatus (official 6/8/26)</p>
+        ${unitTableHtml(profile)}
+        ${profile && profile.otherApparatus && profile.otherApparatus.length
+          ? `<p class="popup-field-label">Also noted</p>${listOrPlaceholder(profile.otherApparatus)}` : ""}
         <p class="popup-field-label">Crew per shift</p>
         ${listOrPlaceholder(crewList(profile && profile.crew_per_shift))}
         <p class="popup-field-label">Specialties</p>

@@ -14,7 +14,14 @@ D.stations.features.forEach((f) => {
   f.properties.crossStreets = { on_street: old.on_street || null, cross_street_1: c1 || null, cross_street_2: c2 || null };
   f.properties.battalion = o.battalion;
   f.properties.neighborhood = o.neighborhood;
-  f.properties.profile = Object.assign({}, f.properties.profile, { units: o.units });
+  // Unit codes + notes replace the older free-text apparatus list so the
+  // popup shows one table, not two overlapping lists. Anything the sheet
+  // doesn't carry (reserve units, historic boats) lives in other_apparatus.
+  const profile = Object.assign({}, f.properties.profile, { units: o.units });
+  delete profile.apparatus;
+  if (o.unit_notes) profile.unitNotes = o.unit_notes; else delete profile.unitNotes;
+  if (o.other_apparatus) profile.otherApparatus = o.other_apparatus; else delete profile.otherApparatus;
+  f.properties.profile = profile;
   n++;
 });
 fs.writeFileSync(__dirname + "/data.js", "const PFR_DATA = " + JSON.stringify(D) + ";\n");

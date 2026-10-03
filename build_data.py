@@ -142,7 +142,13 @@ for feat in stations_fc["features"]:
         }
         feat["properties"]["battalion"] = o["battalion"]
         feat["properties"]["neighborhood"] = o["neighborhood"]
-        feat["properties"].setdefault("profile", {})["units"] = o["units"]
+        profile = feat["properties"].setdefault("profile", {})
+        profile["units"] = o["units"]
+        profile.pop("apparatus", None)  # replaced by units + unitNotes + otherApparatus
+        if o.get("unit_notes"):
+            profile["unitNotes"] = o["unit_notes"]
+        if o.get("other_apparatus"):
+            profile["otherApparatus"] = o["other_apparatus"]
 bundle["stations"] = stations_fc
 
 route_geo = load("study_route_geographic.geojson")
