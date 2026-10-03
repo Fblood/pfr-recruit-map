@@ -829,10 +829,9 @@
     return `<p class="popup-sources">Sources: ${links}</p>`;
   }
 
-  // Cross streets are computed (not guessed) from the city's own street
-  // centerline data -- see compute_cross_streets.py. A station with only one
-  // real cross street within range (sparse grid, e.g. industrial areas) shows
-  // just that one rather than padding in a false second street.
+  // Cross streets come from PF&R's official station list (station_official.json,
+  // updated 6/8/26), which overrides the earlier computed values. A station with
+  // only one entry (e.g. Station 6's "3600 Block of Front Ave") shows just that.
   function crossStreetsHtml(crossStreets) {
     const streets = crossStreets ? [crossStreets.cross_street_1, crossStreets.cross_street_2].filter(Boolean) : [];
     if (!streets.length) return `<p class="popup-empty">Cross streets not yet available.</p>`;
@@ -848,12 +847,15 @@
       return `
         <span>${p.ADDRESS}</span>
         ${crossStreetsHtml(p.crossStreets)}
+        ${p.battalion ? `<p class="popup-cross-streets">Battalion ${p.battalion}${p.neighborhood ? ` &middot; ${p.neighborhood}` : ""}</p>` : ""}
         <a class="popup-gmaps" href="${gmapsUrl}" target="_blank" rel="noopener noreferrer">Open in Google Maps &rarr;</a>
       `;
     }
     if (tab === "info") {
       return `
-        <p class="popup-field-label">Apparatus</p>
+        <p class="popup-field-label">Units (official, 6/8/26)</p>
+        ${listOrPlaceholder(profile && profile.units)}
+        <p class="popup-field-label">Apparatus details</p>
         ${listOrPlaceholder(profile && profile.apparatus)}
         <p class="popup-field-label">Crew per shift</p>
         ${listOrPlaceholder(crewList(profile && profile.crew_per_shift))}
