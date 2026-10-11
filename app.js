@@ -1522,7 +1522,7 @@
 
   const PAR_MS = 10 * 60 * 1000;   // Advanced par time for all 31
 
-  // Nearest-station areas from the First-Due layer data, keyed by station number.
+  // Nearest-station areas (the "Nearest Station" layer's data), keyed by station number.
   function pinAreas() {
     const areas = {};
     D.firstDue.features.forEach((f) => { areas[f.properties.STATION] = ringsOf(f.geometry); });
