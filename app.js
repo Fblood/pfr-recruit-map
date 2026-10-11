@@ -166,6 +166,7 @@
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
     const { lon, lat } = toLonLat(sx, sy);
     coordReadout.textContent = `LAT ${lat.toFixed(4)} · LON ${lon.toFixed(4)}`;
+    if (!dragging && currentMode === "place") placeSetHover(sx, sy);
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
     if (Math.abs(dx) > 2 || Math.abs(dy) > 2) moved = true;
@@ -716,6 +717,8 @@
         const [lon, lat] = f.geometry.coordinates;
         drawPointMarker(lon, lat, "circle", "#3FBE72", 8);
       }
+    } else if (currentMode === "place") {
+      drawPlaceStations();
     } else if (currentMode === "flashcard") {
       const highlight = new Map();
       if (flashState.revealNumber) highlight.set(flashState.revealNumber, flashState.revealColor);
@@ -1057,6 +1060,7 @@
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
 
     if (currentMode === "blind") { handleBlindClick(sx, sy); return; }
+    if (currentMode === "place") { handlePlaceClick(sx, sy); return; }
     if (currentMode !== "map") { closePopup(); return; }
 
     const hit = nearestStation(sx, sy, 22);
@@ -1295,6 +1299,282 @@
   }
 
   // ---------------------------------------------------------------------
+  // PLACE IT -- beginner level
+  // ---------------------------------------------------------------------
+  // Every station is lit and unnumbered; the player has the numbers 1-31 in a
+  // pool and puts each one on its station, either by dragging the number onto
+  // the map or by tapping the number and then tapping the station. The rules
+  // (scoring, hints, completion) live in place-logic.js with their own tests;
+  // this section is the board: pool, drag handling, and drawing.
+  //
+  // The pool is a side-panel group on desktop and a one-row strip inside the
+  // readout (right under the map) on a phone, so a number and the map are
+  // always on screen together.
+
+  const PLACE_TOLERANCE = 26; // px around a marker that counts as "on" it
+  let place = null;           // the current game, or null when not in this mode
+  let placeUi = null;         // { pool, chips, left, ... } DOM refs, built once
+  const placeMQ = window.matchMedia("(max-width: 860px)");
+
+  function buildPlacePool() {
+    const pool = document.createElement("section");
+    pool.className = "rail-group place-group";
+    pool.id = "placePool";
+    pool.innerHTML = `
+      <div class="place-pool-head">
+        <p class="rail-label">Station numbers <span class="place-left" id="plLeft"></span></p>
+        <button type="button" class="place-restart" id="plRestart">Restart</button>
+      </div>
+      <div class="place-chips" id="placeChips" role="group" aria-label="Station numbers still to place"></div>
+      <p class="place-empty" id="plEmpty" hidden>Every number is on the map.</p>`;
+    placeUi = { pool, chips: pool.querySelector("#placeChips"), left: pool.querySelector("#plLeft"), empty: pool.querySelector("#plEmpty") };
+    wirePlaceChips(placeUi.chips);
+    pool.querySelector("#plRestart").addEventListener("click", startPlace);
+  }
+
+  function mountPlacePool() {
+    if (!placeUi) return;
+    const card = readoutEl.querySelector(".place-card");
+    if (placeMQ.matches && card) card.appendChild(placeUi.pool);
+    else document.getElementById("rail").prepend(placeUi.pool);
+  }
+  placeMQ.addEventListener("change", () => { if (currentMode === "place") mountPlacePool(); });
+
+  function unmountPlace() {
+    if (placeUi) placeUi.pool.remove();
+    placeEndDrag();
+    place = null;
+  }
+
+  function startPlace() {
+    if (!placeUi) buildPlacePool();
+    place = createPlaceGame(STATION_NUMBERS);
+    placeUi.chips.innerHTML = STATION_NUMBERS
+      .map((n) => `<button type="button" class="place-chip" data-num="${n}" aria-pressed="false">${n}</button>`).join("");
+    placeUi.empty.hidden = true;
+    place.hover = null; place.flashStation = null; place.flashUntil = 0;
+
+    readoutEl.innerHTML = `
+      <div class="card place-card">
+        <div class="place-head">
+          <p class="card-main" id="plPrompt"></p>
+          <p class="place-stats" id="plStats"></p>
+        </div>
+        <p class="feedback-line" id="plLine" aria-live="polite">&nbsp;</p>
+      </div>`;
+    mountPlacePool();
+    placeRefresh();
+    render();
+  }
+
+  function placeLine(text, cls) {
+    const el = document.getElementById("plLine");
+    if (!el) return;
+    el.textContent = text;
+    el.className = "feedback-line" + (cls ? " " + cls : "");
+  }
+
+  // Re-syncs every piece of text/state that depends on the game.
+  function placeRefresh() {
+    const s = placeSummary(place);
+    const prompt = document.getElementById("plPrompt");
+    if (s.done) {
+      prompt.textContent = "All 31 stations placed";
+    } else if (place.selected) {
+      prompt.textContent = `Station ${place.selected} — tap or drop it on its station`;
+    } else {
+      prompt.textContent = "Pick a number, then tap its station";
+    }
+    document.getElementById("plStats").textContent = s.done
+      ? `${s.firstTry} of ${s.total} on the first try · ${s.misses} miss${s.misses === 1 ? "" : "es"} · ${formatElapsed(s.elapsedMs)}`
+      : `${s.placed} / ${s.total} placed · ${s.misses} miss${s.misses === 1 ? "" : "es"}`;
+    placeUi.left.textContent = s.done ? "" : `${s.left} left`;
+    placeUi.empty.hidden = !s.done;
+    placeUi.chips.querySelectorAll(".place-chip").forEach((c) => {
+      const on = c.dataset.num === place.selected;
+      c.classList.toggle("is-selected", on);
+      c.setAttribute("aria-pressed", String(on));
+    });
+  }
+
+  function nearestUnplaced(sx, sy, tol) {
+    let best = null, bestD = tol;
+    D.stations.features.forEach((f) => {
+      if (place.placed.has(f.properties.STATION)) return;
+      const { x, y } = toScreen(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+      const d = Math.hypot(x - sx, y - sy);
+      if (d < bestD) { bestD = d; best = f; }
+    });
+    return best;
+  }
+
+  function placeSetHover(sx, sy) {
+    if (!place || place.finishedAt != null) return;
+    const holding = place.selected || (placeDrag && placeDrag.active);
+    const hit = holding ? nearestUnplaced(sx, sy, PLACE_TOLERANCE) : null;
+    const next = hit ? hit.properties.STATION : null;
+    if (next !== place.hover) { place.hover = next; render(); }
+  }
+
+  // One drop of `num` on marker `station`: apply the rules, then show the result.
+  function placeDrop(num, station) {
+    const r = placeAttempt(place, num, station, Date.now());
+    if (r.status === "already") {
+      placeLine(`Station ${station} is already placed.`, "");
+    } else if (r.status === "wrong") {
+      recordAnswer(false, num);
+      place.flashStation = station;
+      place.flashUntil = Date.now() + 900;
+      setTimeout(render, 950);
+      placeLine(`That marker is Station ${station}, not ${num}.${r.hint ? " A green ring now marks where " + num + " goes." : ""}`, "bad");
+      const chip = placeUi.chips.querySelector(`.place-chip[data-num="${num}"]`);
+      if (chip) { chip.classList.remove("is-wrong"); void chip.offsetWidth; chip.classList.add("is-wrong"); }
+    } else if (r.status === "correct") {
+      recordAnswer(true, num);
+      const chip = placeUi.chips.querySelector(`.place-chip[data-num="${num}"]`);
+      if (chip) chip.remove();
+      const f = STATIONS[num];
+      placeLine(`Station ${num} ✓  ${f.properties.ADDRESS}`, "ok");
+      if (r.finished) placeLine(`Done — ${placeSummary(place).firstTry} of ${place.numbers.length} on the first try.`, "ok");
+    }
+    place.hover = null;
+    placeRefresh();
+    render();
+  }
+
+  function handlePlaceClick(sx, sy) {
+    if (!place || place.finishedAt != null) return;
+    const hit = nearestUnplaced(sx, sy, PLACE_TOLERANCE);
+    if (!hit) {
+      const filled = nearestStation(sx, sy, PLACE_TOLERANCE);
+      if (filled) placeLine(`Station ${filled.properties.STATION} is already placed.`, "");
+      return;
+    }
+    if (!place.selected) { placeLine("Pick a number first, then tap its station.", ""); return; }
+    placeDrop(place.selected, hit.properties.STATION);
+  }
+
+  function placeSelectNum(num) {
+    placeSelect(place, num);
+    placeLine(" ", "");
+    placeRefresh();
+    render();
+  }
+
+  // --- drag a number from the pool onto the map (pointer events: mouse, touch, pen) ---
+  // A press that never moves more than a few pixels is a tap and falls through to the
+  // button's own click (select/deselect, which also covers keyboard Enter/Space).
+  let placeDrag = null;
+  let placeSuppressClick = false;
+  let placePressScroll = 0;   // strip scroll position when the finger went down
+
+  // After a gesture that wasn't a tap, swallow any click the browser still sends.
+  function placeSwallowClicks(ms) {
+    placeSuppressClick = true;
+    setTimeout(() => { placeSuppressClick = false; }, ms);
+  }
+
+  function placeEndDrag() {
+    if (placeDrag && placeDrag.ghost) placeDrag.ghost.remove();
+    if (placeDrag && placeDrag.chip) placeDrag.chip.classList.remove("is-dragging");
+    placeDrag = null;
+    if (place) { place.hover = null; render(); }
+  }
+
+  function wirePlaceChips(chipsEl) {
+    chipsEl.addEventListener("click", (e) => {
+      if (placeSuppressClick) { placeSuppressClick = false; return; }
+      // A swipe along the strip scrolls it; that is not a tap on whatever chip it started on.
+      if (Math.abs(chipsEl.scrollLeft - placePressScroll) > 4) return;
+      const chip = e.target.closest(".place-chip");
+      if (chip && place) placeSelectNum(chip.dataset.num);
+    });
+    chipsEl.addEventListener("pointerdown", (e) => {
+      const chip = e.target.closest(".place-chip");
+      if (!chip || !place || place.finishedAt != null || e.button > 0) return;
+      placePressScroll = chipsEl.scrollLeft;
+      placeDrag = { chip, num: chip.dataset.num, id: e.pointerId, x0: e.clientX, y0: e.clientY, active: false, ghost: null };
+      chip.setPointerCapture(e.pointerId);
+    });
+    chipsEl.addEventListener("pointermove", (e) => {
+      if (!placeDrag || e.pointerId !== placeDrag.id) return;
+      if (!placeDrag.active) {
+        if (Math.hypot(e.clientX - placeDrag.x0, e.clientY - placeDrag.y0) < 8) return;
+        placeDrag.active = true;
+        // Not selected yet: if the browser turns this into a scroll it cancels us and nothing was chosen.
+        placeDrag.chip.classList.add("is-dragging");
+        const g = document.createElement("div");
+        g.className = "place-ghost";
+        g.textContent = placeDrag.num;
+        document.body.appendChild(g);
+        placeDrag.ghost = g;
+      }
+      placeDrag.ghost.style.left = e.clientX + "px";
+      placeDrag.ghost.style.top = e.clientY + "px";
+      const r = canvas.getBoundingClientRect();
+      const sx = e.clientX - r.left, sy = e.clientY - r.top;
+      if (sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height) placeSetHover(sx, sy);
+      else if (place.hover !== null) { place.hover = null; render(); }
+    });
+    const finish = (e, cancelled) => {
+      if (!placeDrag || e.pointerId !== placeDrag.id) return;
+      const wasDrag = placeDrag.active, num = placeDrag.num, target = place.hover;
+      placeEndDrag();
+      // The browser cancels the pointer when it takes the gesture for a pan (a swipe along the strip).
+      if (cancelled && !wasDrag) { placeSwallowClicks(350); return; }
+      if (!wasDrag) return;                      // a tap: let the click handler select it
+      placeSwallowClicks(0);                     // the click that follows a drag isn't a tap
+      if (!cancelled && target) placeDrop(num, target);
+      else if (!cancelled) {
+        if (place.selected !== num) placeSelect(place, num);   // keep it in hand so a tap on a station finishes the job
+        placeRefresh();
+        placeLine("Dropped off the station — the number stays selected.", "");
+      }
+    };
+    chipsEl.addEventListener("pointerup", (e) => finish(e, false));
+    chipsEl.addEventListener("pointercancel", (e) => finish(e, true));
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && currentMode === "place" && place && place.selected) placeSelectNum(place.selected);
+  });
+
+  // Lit, unnumbered stations; placed ones turn green with their number.
+  function drawPlaceStations() {
+    if (!place) return;
+    const now = Date.now();
+    D.stations.features.forEach((f) => {
+      const num = f.properties.STATION;
+      const [lon, lat] = f.geometry.coordinates;
+      if (place.placed.has(num)) {
+        drawPointMarker(lon, lat, "house", "#3FBE72", 7);
+        drawStationNumber(lon, lat, num, "#3FBE72");
+        return;
+      }
+      const { x, y } = toScreen(lon, lat);
+      const hot = place.hover === num;
+      const r = hot ? 24 : 14;
+      const glow = ctx.createRadialGradient(x, y, 2, x, y, r);
+      glow.addColorStop(0, hot ? "rgba(255,255,255,0.6)" : "rgba(255,200,87,0.55)");
+      glow.addColorStop(1, "rgba(255,200,87,0)");
+      ctx.fillStyle = glow;
+      ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill();
+      drawPointMarker(lon, lat, "house", hot ? "#FFFFFF" : "#FFC857", hot ? 8 : 6);
+    });
+    const ring = (station, color, dash) => {
+      const f = STATIONS[station];
+      if (!f) return;
+      const { x, y } = toScreen(f.geometry.coordinates[0], f.geometry.coordinates[1]);
+      ctx.save();
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.setLineDash(dash);
+      ctx.beginPath(); ctx.arc(x, y, 16, 0, Math.PI * 2); ctx.stroke();
+      ctx.restore();
+    };
+    if (place.hint) ring(place.hint, "#3FBE72", [5, 4]);
+    if (place.flashStation && now < place.flashUntil) ring(place.flashStation, "#E8503F", []);
+  }
+
+  // ---------------------------------------------------------------------
   // MODE SWITCHING
   // ---------------------------------------------------------------------
 
@@ -1312,10 +1592,13 @@
     blindControls.hidden = mode !== "blind";
     closePopup();
     resetView();
+    document.body.classList.toggle("mode-place", mode === "place");
+    if (mode !== "place" && place) unmountPlace();
 
     if (mode === "flashcard") { nextFlashcard(); }
     else if (mode === "route") { currentLegIndex = 0; renderRoute(); }
     else if (mode === "blind") { nextBlind(); }
+    else if (mode === "place") { startPlace(); }
     else { readoutEl.innerHTML = readoutIdle; render(); }
   }
 
