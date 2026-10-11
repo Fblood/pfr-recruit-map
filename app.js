@@ -157,6 +157,7 @@
   let dragging = false, lastX = 0, lastY = 0, moved = false;
 
   canvas.addEventListener("pointerdown", (e) => {
+    if (pinGrab(e)) return;               // Place It (intermediate): a pin under the finger moves, the map doesn't
     dragging = true; moved = false;
     lastX = e.clientX; lastY = e.clientY;
     canvas.setPointerCapture(e.pointerId);
@@ -166,6 +167,7 @@
     const sx = e.clientX - rect.left, sy = e.clientY - rect.top;
     const { lon, lat } = toLonLat(sx, sy);
     coordReadout.textContent = `LAT ${lat.toFixed(4)} · LON ${lon.toFixed(4)}`;
+    if (pinDrag && e.pointerId === pinDrag.id) { pinDragMove(sx, sy); return; }
     if (!dragging && currentMode === "place") placeSetHover(sx, sy);
     if (!dragging) return;
     const dx = e.clientX - lastX, dy = e.clientY - lastY;
@@ -176,10 +178,13 @@
     render();
   });
   window.addEventListener("pointerup", (e) => {
+    if (pinDrag && e.pointerId === pinDrag.id) { pinRelease(e); return; }
     if (!dragging) return;
     dragging = false;
     if (!moved) handleCanvasClick(e);
   });
+  canvas.addEventListener("pointercancel", () => { pinDrag = null; });
+  canvas.addEventListener("pointerleave", () => { if (place && place.cursor) { place.cursor = null; render(); } });
   canvas.addEventListener("wheel", (e) => {
     e.preventDefault();
     const rect = canvas.getBoundingClientRect();
@@ -248,7 +253,7 @@
   // LAYER TOGGLES
   // ---------------------------------------------------------------------
 
-  const layerState = { water: true, boundary: true, firstDue: false, fdc: false, lockedGates: false, blockedStreets: false, sectors: false, neighborhoods: false, landmarks: false };
+  const layerState = { water: true, boundary: true, firstDue: false, sectors: false, neighborhoods: false, landmarks: false };
   // Layer chips (the bar above the map). layerState is the single source of
   // truth; each chip's aria-pressed is synced from it at startup and on click.
   document.querySelectorAll("#layerChips button[data-layer]").forEach((btn) => {
@@ -582,10 +587,6 @@
     return { x, y };
   }
 
-  function drawPoints(fc, shape, color, size) {
-    fc.features.forEach((f) => drawPointMarker(f.geometry.coordinates[0], f.geometry.coordinates[1], shape, color, size));
-  }
-
   function drawLine(coords, color, width, dash) {
     ctx.save();
     ctx.setLineDash(dash || []);
@@ -687,9 +688,6 @@
     if (layerState.sectors) drawDividingStreets();
     if (layerState.landmarks) drawLandmarks();
     if (layerState.firstDue) drawFirstDue();
-    if (layerState.fdc) drawPoints(D.fdc, "square", "#1A9CA6", 3.4);
-    if (layerState.lockedGates) drawPoints(D.lockedGates, "triangle", "#FFA82E", 3.6);
-    if (layerState.blockedStreets) drawPoints(D.blockedStreets, "diamond", "#D6451E", 3.8);
 
     flushLabels();
 
@@ -1312,7 +1310,11 @@
   // always on screen together.
 
   const PLACE_TOLERANCE = 26; // px around a marker that counts as "on" it
+  const PIN_GRAB = 16;        // px around a pin that grabs it
   let place = null;           // the current game, or null when not in this mode
+  let placeLevel = "beginner"; // "beginner" | "intermediate"
+  let placeRound = "all";      // intermediate: "all" or a battalion "1".."4"
+  const isPins = () => !!place && place.kind === "pins";
   let placeUi = null;         // { pool, chips, left, ... } DOM refs, built once
   const placeMQ = window.matchMedia("(max-width: 860px)");
 
@@ -1322,14 +1324,32 @@
     pool.id = "placePool";
     pool.innerHTML = `
       <div class="place-pool-head">
-        <p class="rail-label">Station numbers <span class="place-left" id="plLeft"></span></p>
+        <p class="rail-label"><span id="plLabel">Station numbers</span> <span class="place-left" id="plLeft"></span></p>
+        <select class="place-round" id="plRound" aria-label="Which stations to place" hidden>
+          <option value="all">All 31</option>
+          <option value="1">Battalion 1</option>
+          <option value="2">Battalion 2</option>
+          <option value="3">Battalion 3</option>
+          <option value="4">Battalion 4</option>
+        </select>
         <button type="button" class="place-restart" id="plRestart">Restart</button>
       </div>
       <div class="place-chips" id="placeChips" role="group" aria-label="Station numbers still to place"></div>
-      <p class="place-empty" id="plEmpty" hidden>Every number is on the map.</p>`;
-    placeUi = { pool, chips: pool.querySelector("#placeChips"), left: pool.querySelector("#plLeft"), empty: pool.querySelector("#plEmpty") };
+      <p class="place-empty" id="plEmpty" hidden>Every number is on the map.</p>
+      <div class="place-actions" id="plActions" hidden>
+        <button type="button" class="next-btn" id="plRetry">Retry misses</button>
+        <button type="button" class="next-btn" id="plAgain">New round</button>
+      </div>`;
+    placeUi = {
+      pool, chips: pool.querySelector("#placeChips"), left: pool.querySelector("#plLeft"), empty: pool.querySelector("#plEmpty"),
+      label: pool.querySelector("#plLabel"), round: pool.querySelector("#plRound"), actions: pool.querySelector("#plActions"),
+      retry: pool.querySelector("#plRetry"),
+    };
     wirePlaceChips(placeUi.chips);
     pool.querySelector("#plRestart").addEventListener("click", startPlace);
+    placeUi.round.addEventListener("change", () => { placeRound = placeUi.round.value; startPlace(); });
+    placeUi.retry.addEventListener("click", pinsRetry);
+    pool.querySelector("#plAgain").addEventListener("click", startPlace);
   }
 
   function mountPlacePool() {
@@ -1348,23 +1368,34 @@
 
   function startPlace() {
     if (!placeUi) buildPlacePool();
+    placeUi.label.textContent = placeLevel === "intermediate" ? "Numbers" : "Station numbers";
+    placeUi.round.hidden = placeLevel !== "intermediate";
+    placeUi.chips.hidden = false;
+    placeUi.actions.hidden = true;
+    pinDrag = null;
+    if (placeLevel === "intermediate") { startPins(); return; }
     place = createPlaceGame(STATION_NUMBERS);
     placeUi.chips.innerHTML = STATION_NUMBERS
       .map((n) => `<button type="button" class="place-chip" data-num="${n}" aria-pressed="false">${n}</button>`).join("");
     placeUi.empty.hidden = true;
     place.hover = null; place.flashStation = null; place.flashUntil = 0;
 
-    readoutEl.innerHTML = `
+    readoutEl.innerHTML = placeCardHtml();
+    mountPlacePool();
+    placeRefresh();
+    render();
+  }
+
+  function placeCardHtml() {
+    return `
       <div class="card place-card">
         <div class="place-head">
           <p class="card-main" id="plPrompt"></p>
+          <button type="button" class="place-check" id="plCheck" hidden>Check</button>
           <p class="place-stats" id="plStats"></p>
         </div>
         <p class="feedback-line" id="plLine" aria-live="polite">&nbsp;</p>
       </div>`;
-    mountPlacePool();
-    placeRefresh();
-    render();
   }
 
   function placeLine(text, cls) {
@@ -1376,6 +1407,7 @@
 
   // Re-syncs every piece of text/state that depends on the game.
   function placeRefresh() {
+    if (isPins()) { pinsRefresh(); return; }
     const s = placeSummary(place);
     const prompt = document.getElementById("plPrompt");
     if (s.done) {
@@ -1389,6 +1421,7 @@
       ? `${s.firstTry} of ${s.total} on the first try · ${s.misses} miss${s.misses === 1 ? "" : "es"} · ${formatElapsed(s.elapsedMs)}`
       : `${s.placed} / ${s.total} placed · ${s.misses} miss${s.misses === 1 ? "" : "es"}`;
     placeUi.left.textContent = s.done ? "" : `${s.left} left`;
+    placeUi.chips.hidden = s.done;               // the "all placed" message takes the strip's place, so the map doesn't resize
     placeUi.empty.hidden = !s.done;
     placeUi.chips.querySelectorAll(".place-chip").forEach((c) => {
       const on = c.dataset.num === place.selected;
@@ -1409,6 +1442,11 @@
   }
 
   function placeSetHover(sx, sy) {
+    if (isPins()) {   // a faint pin follows the cursor while a number is held (mouse only)
+      const next = place.selected && place.checkedAt == null ? { sx, sy } : null;
+      if (next || place.cursor) { place.cursor = next; render(); }
+      return;
+    }
     if (!place || place.finishedAt != null) return;
     const holding = place.selected || (placeDrag && placeDrag.active);
     const hit = holding ? nearestUnplaced(sx, sy, PLACE_TOLERANCE) : null;
@@ -1443,6 +1481,7 @@
   }
 
   function handlePlaceClick(sx, sy) {
+    if (isPins()) { pinsClick(sx, sy); return; }
     if (!place || place.finishedAt != null) return;
     const hit = nearestUnplaced(sx, sy, PLACE_TOLERANCE);
     if (!hit) {
@@ -1455,10 +1494,258 @@
   }
 
   function placeSelectNum(num) {
-    placeSelect(place, num);
+    if (isPins()) pinSelect(place, num); else placeSelect(place, num);
     placeLine(" ", "");
     placeRefresh();
     render();
+  }
+
+
+  // ---------------------------------------------------------------------
+  // PLACE IT -- intermediate level: Pin & Check
+  // ---------------------------------------------------------------------
+  // No stations are shown. The player drops a numbered pin where they think
+  // each station is (tap a number then tap the map, or drag the number onto
+  // the map), can move a pin by dragging it or lift it by tapping it, and
+  // presses Check once every number is down. Results are graded by real
+  // distance (place-logic.js), the true spots are revealed with a line from
+  // each pin, and "Retry misses" replays only the ones that were far off.
+  // A round can be all 31 or one battalion (8/8/7/8) -- the way recruits
+  // are taught the stations in groups.
+
+  let pinDrag = null;   // a pin being moved on the map
+
+  function pinTruth() {
+    const t = {};
+    STATION_NUMBERS.forEach((n) => { t[n] = STATIONS[n].geometry.coordinates; });
+    return t;
+  }
+
+  function roundNumbers() {
+    return placeRound === "all"
+      ? STATION_NUMBERS
+      : STATION_NUMBERS.filter((n) => String(STATIONS[n].properties.battalion) === placeRound);
+  }
+
+  function startPins(carry) {
+    place = carry || createPinGame(roundNumbers(), pinTruth());
+    place.cursor = null;
+    placeUi.chips.innerHTML = "";
+    syncChips(pinsRemaining(place));
+    placeUi.empty.hidden = true;
+    placeUi.actions.hidden = true;
+    readoutEl.innerHTML = placeCardHtml();
+    document.getElementById("plCheck").addEventListener("click", pinsCheck);
+    mountPlacePool();
+    placeLine(carry ? "Retry — your good pins stay put. Place the rest again." : "Tap a number, then tap the map where you think that station is.", "");
+    pinsRefresh();
+    // A battalion round opens framed on that battalion's area (that is what the round teaches, and at
+    // full-city zoom "spot on" would be a few pixels -- too fine for a fingertip). Retries keep your view.
+    if (!carry) {
+      resetView();
+      if (placeRound !== "all") {
+        const game = place;   // the canvas re-fits a frame after the card swaps in; frame once it has its final size
+        requestAnimationFrame(() => requestAnimationFrame(() => {
+          if (place !== game) return;
+          frameStations(roundNumbers(), 46);
+          clampPan();
+          render();
+        }));
+      }
+    }
+    render();
+  }
+
+  // Add/remove chips in place (rebuilding would reset the strip's scroll position).
+  function syncChips(wanted) {
+    const have = new Map([...placeUi.chips.children].map((c) => [c.dataset.num, c]));
+    have.forEach((el, n) => { if (!wanted.includes(n)) el.remove(); });
+    wanted.forEach((n, i) => {
+      if (have.has(n)) return;
+      const b = document.createElement("button");
+      b.type = "button"; b.className = "place-chip"; b.dataset.num = n; b.setAttribute("aria-pressed", "false"); b.textContent = n;
+      placeUi.chips.insertBefore(b, placeUi.chips.children[i] || null);
+    });
+  }
+
+  function pinsRefresh() {
+    const s = pinSummary(place);
+    const prompt = document.getElementById("plPrompt");
+    const check = document.getElementById("plCheck");
+    const roundName = placeRound === "all" ? "All 31" : `Battalion ${placeRound}`;
+    if (s.checked) {
+      prompt.textContent = `${s.spot + s.close} of ${s.total} within a mile`;
+      check.hidden = true;
+    } else if (pinReady(place)) {
+      prompt.textContent = "All pinned — check when ready";
+    } else if (place.selected) {
+      prompt.textContent = `Station ${place.selected} — tap the map where it is`;
+    } else {
+      prompt.textContent = "Pick a number, then tap the map";
+    }
+    if (!s.checked) {
+      check.hidden = false;
+      check.disabled = !pinReady(place);
+    }
+    document.getElementById("plStats").textContent = s.checked
+      ? `${s.spot} spot on · ${s.close} close · ${s.off} off · avg ${s.avgMiles.toFixed(1)} mi · ${formatElapsed(s.elapsedMs)}`
+      : `Intermediate · ${roundName} · ${s.placed}/${s.inPlay} pinned`;
+    placeUi.left.textContent = s.checked ? "" : `${s.inPlay - s.placed} left`;
+    syncChips(pinsRemaining(place));
+    placeUi.chips.querySelectorAll(".place-chip").forEach((c) => {
+      const on = c.dataset.num === place.selected;
+      c.classList.toggle("is-selected", on);
+      c.setAttribute("aria-pressed", String(on));
+    });
+    placeUi.empty.hidden = true;
+    placeUi.chips.hidden = s.checked;            // the buttons take the strip's place: same height, so the map doesn't resize
+    placeUi.actions.hidden = !s.checked;
+    placeUi.retry.hidden = !(s.checked && s.off > 0);
+    placeUi.retry.textContent = `Retry misses (${s.off})`;
+  }
+
+  function pinAt(sx, sy, tol) {
+    let best = null, bestD = tol;
+    Object.entries(place.pins).forEach(([num, [lon, lat]]) => {
+      const { x, y } = toScreen(lon, lat);
+      const d = Math.hypot(x - sx, y - sy);
+      if (d <= bestD) { bestD = d; best = num; }   // later pins win ties: they're drawn on top
+    });
+    return best;
+  }
+
+  function pinDropAt(num, sx, sy) {
+    const { lon, lat } = toLonLat(sx, sy);
+    if (!pinPlace(place, num, lon, lat, Date.now())) return;
+    place.cursor = null;
+    placeLine(pinReady(place)
+      ? "All pinned. Drag a pin to adjust it, or press Check."
+      : `Station ${num} pinned. Drag a pin to move it, tap a pin to pick it up.`, "ok");
+    pinsRefresh();
+    render();
+  }
+
+  // A tap on the map (no pin under it): drop the held number there.
+  function pinsClick(sx, sy) {
+    if (place.checkedAt != null) return;
+    if (!place.selected) { placeLine("Pick a number first, then tap the map. Or tap a pin to pick it back up.", ""); return; }
+    pinDropAt(place.selected, sx, sy);
+  }
+
+  // --- moving / lifting pins on the canvas ---
+  function pinGrab(e) {
+    if (!isPins() || place.checkedAt != null || e.button > 0) return false;
+    const r = canvas.getBoundingClientRect();
+    const sx = e.clientX - r.left, sy = e.clientY - r.top;
+    if (place.selected) return false;           // holding a number: a tap places it, even on top of a pin
+    const num = pinAt(sx, sy, PIN_GRAB);
+    if (!num) return false;
+    pinDrag = { num, id: e.pointerId, x0: e.clientX, y0: e.clientY, moved: false };
+    canvas.setPointerCapture(e.pointerId);
+    return true;
+  }
+
+  function pinDragMove(sx, sy) {
+    if (!pinDrag.moved) {
+      const r = canvas.getBoundingClientRect();
+      // (the 6px slop is measured from where the finger went down)
+      if (Math.hypot(sx + r.left - pinDrag.x0, sy + r.top - pinDrag.y0) < 6) return;
+      pinDrag.moved = true;
+    }
+    const { lon, lat } = toLonLat(sx, sy);
+    place.pins[pinDrag.num] = [lon, lat];
+    render();
+  }
+
+  function pinRelease() {
+    const d = pinDrag;
+    pinDrag = null;
+    if (!d.moved) {                              // a tap on a pin picks it back up
+      pinLift(place, d.num);
+      placeLine(`Station ${d.num} is back in your hand — tap the map to place it again.`, "");
+    } else {
+      placeLine(`Station ${d.num} moved.`, "ok");
+    }
+    pinsRefresh();
+    render();
+  }
+
+  // --- Check, retry, personal best ---
+  function pinsBest(sum) {
+    if (Object.keys(place.locked).length) return null;           // retry rounds don't set records
+    const key = "int-" + placeRound;
+    let all = {};
+    try { all = JSON.parse(localStorage.getItem("pfrmdt_place_best") || "{}") || {}; } catch (e) { all = {}; }
+    const prev = all[key];
+    const better = !prev || pinScore(sum) > pinScore(prev);
+    if (better) {
+      all[key] = { spot: sum.spot, close: sum.close, avgMiles: sum.avgMiles };
+      try { localStorage.setItem("pfrmdt_place_best", JSON.stringify(all)); } catch (e) { /* storage blocked: skip */ }
+    }
+    return { better, prev };
+  }
+
+  function pinsCheck() {
+    const results = pinCheck(place, Date.now());
+    if (!results) return;
+    results.forEach((r) => recordAnswer(r.grade !== "off", r.num));
+    const s = pinSummary(place);
+    const best = pinsBest(s);
+    let msg = s.worst && s.worst.miles > CLOSE_MILES
+      ? `Furthest off: Station ${s.worst.num}, ${s.worst.miles.toFixed(1)} mi.`
+      : "Every pin was within a mile.";
+    if (best && best.better && !best.prev) msg += " First score for this round saved.";
+    else if (best && best.better) msg += " New personal best!";
+    else if (best && best.prev) msg += ` Best so far: ${best.prev.spot} spot on, ${best.prev.close} close.`;
+    place.selected = null;
+    placeLine(msg, s.off === 0 ? "ok" : "bad");
+    pinsRefresh();
+    render();
+  }
+
+  function pinsRetry() {
+    const next = pinRetryOffs(place);
+    if (next) startPins(next);
+  }
+
+  // --- drawing ---
+  const PIN_COLORS = { spot: "#3FBE72", close: "#FFC857", off: "#E8503F" };
+
+  function drawPin(num, lon, lat, fill, faint) {
+    const { x, y } = toScreen(lon, lat);
+    ctx.save();
+    ctx.globalAlpha = faint ? 0.45 : 1;
+    ctx.beginPath(); ctx.arc(x, y, 10, 0, Math.PI * 2);
+    ctx.fillStyle = fill; ctx.fill();
+    ctx.lineWidth = 1.5; ctx.strokeStyle = "rgba(20,18,15,0.85)"; ctx.stroke();
+    ctx.fillStyle = "#17150F";
+    ctx.font = "700 10.5px 'IBM Plex Mono', monospace";
+    ctx.textAlign = "center"; ctx.textBaseline = "middle";
+    ctx.fillText(num, x, y + 0.5);
+    ctx.restore();
+  }
+
+  function drawPinBoard() {
+    Object.entries(place.locked).forEach(([num, [lon, lat]]) => drawPin(num, lon, lat, PIN_COLORS.spot));
+    if (place.checkedAt != null) {
+      place.results.forEach((r) => {
+        const [tlon, tlat] = place.truth[r.num];
+        const [plon, plat] = place.pins[r.num];
+        const a = toScreen(plon, plat), b = toScreen(tlon, tlat);
+        ctx.save();
+        ctx.strokeStyle = PIN_COLORS[r.grade]; ctx.lineWidth = 2; ctx.setLineDash([4, 3]);
+        ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y); ctx.stroke();
+        ctx.restore();
+        drawPointMarker(tlon, tlat, "house", "#FFFFFF", 6);
+      });
+      place.results.forEach((r) => drawPin(r.num, place.pins[r.num][0], place.pins[r.num][1], PIN_COLORS[r.grade]));
+      return;
+    }
+    Object.entries(place.pins).forEach(([num, [lon, lat]]) => drawPin(num, lon, lat, "#FFC857"));
+    if (place.cursor && place.selected) {                 // where the held number would land
+      const { lon, lat } = toLonLat(place.cursor.sx, place.cursor.sy);
+      drawPin(place.selected, lon, lat, "#FFC857", true);
+    }
   }
 
   // --- drag a number from the pool onto the map (pointer events: mouse, touch, pen) ---
@@ -1513,17 +1800,29 @@
       placeDrag.ghost.style.top = e.clientY + "px";
       const r = canvas.getBoundingClientRect();
       const sx = e.clientX - r.left, sy = e.clientY - r.top;
-      if (sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height) placeSetHover(sx, sy);
+      const over = sx >= 0 && sy >= 0 && sx <= r.width && sy <= r.height;
+      placeDrag.drop = over ? { sx, sy } : null;
+      if (isPins()) return;                       // pins just land where you let go
+      if (over) placeSetHover(sx, sy);
       else if (place.hover !== null) { place.hover = null; render(); }
     });
     const finish = (e, cancelled) => {
       if (!placeDrag || e.pointerId !== placeDrag.id) return;
-      const wasDrag = placeDrag.active, num = placeDrag.num, target = place.hover;
+      const wasDrag = placeDrag.active, num = placeDrag.num, target = place.hover, dropAt = placeDrag.drop;
       placeEndDrag();
       // The browser cancels the pointer when it takes the gesture for a pan (a swipe along the strip).
       if (cancelled && !wasDrag) { placeSwallowClicks(350); return; }
       if (!wasDrag) return;                      // a tap: let the click handler select it
       placeSwallowClicks(0);                     // the click that follows a drag isn't a tap
+      if (isPins()) {
+        if (!cancelled && dropAt) pinDropAt(num, dropAt.sx, dropAt.sy);
+        else if (!cancelled) {
+          if (place.selected !== num) pinSelect(place, num);
+          pinsRefresh();
+          placeLine("Dropped off the map — the number stays selected.", "");
+        }
+        return;
+      }
       if (!cancelled && target) placeDrop(num, target);
       else if (!cancelled) {
         if (place.selected !== num) placeSelect(place, num);   // keep it in hand so a tap on a station finishes the job
@@ -1542,6 +1841,7 @@
   // Lit, unnumbered stations; placed ones turn green with their number.
   function drawPlaceStations() {
     if (!place) return;
+    if (isPins()) { drawPinBoard(); return; }
     const now = Date.now();
     D.stations.features.forEach((f) => {
       const num = f.properties.STATION;
@@ -1579,6 +1879,18 @@
   // ---------------------------------------------------------------------
 
   let currentMode = "map";
+  const placeControls = document.getElementById("placeControls");
+  placeControls.querySelectorAll("button[data-level]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      placeLevel = btn.dataset.level;
+      placeControls.querySelectorAll("button[data-level]").forEach((b) => {
+        const on = b === btn;
+        b.classList.toggle("is-active", on);
+        b.setAttribute("aria-pressed", String(on));
+      });
+      if (currentMode === "place") startPlace();
+    });
+  });
   const readoutIdle = `<div class="readout-idle"><p class="readout-hint">MAP MODE &mdash; pan, zoom, tap a station for its info card.</p></div>`;
 
   function setMode(mode) {
@@ -1589,6 +1901,7 @@
       b.setAttribute("aria-selected", String(active));
     });
     routeControls.hidden = mode !== "route";
+    placeControls.hidden = mode !== "place";
     blindControls.hidden = mode !== "blind";
     closePopup();
     resetView();

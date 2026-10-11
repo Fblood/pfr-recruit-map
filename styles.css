@@ -819,7 +819,7 @@ html.is-embedded .statusbar { display: none; }
 .place-chip.is-dragging { opacity: 0.35; }
 .place-chip.is-wrong { animation: place-shake 0.35s ease; border-color: var(--red); }
 @keyframes place-shake { 20%, 60% { transform: translateX(-4px); } 40%, 80% { transform: translateX(4px); } }
-.place-empty { margin: 0; font-size: 13px; color: var(--green); }
+.place-empty { margin: 0; font-size: 13px; color: var(--green); min-height: 52px; display: flex; align-items: center; }
 .place-stats { margin: 0; font-family: var(--font-mono); font-size: 12px; color: var(--text-dim); }
 .place-head { width: 100%; display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 2px 14px; }
 .place-card { gap: 6px; min-width: 0; }
@@ -856,3 +856,47 @@ html.is-embedded .statusbar { display: none; }
 
 /* While playing Place It the Key (red station dot) doesn't match the lit markers, and the room is better spent on the pool and score. */
 .mode-place .rail-group:not(.place-group):not(.score-group) { display: none; }
+
+/* ---------- Place It: intermediate controls ---------- */
+.place-check {
+  appearance: none; min-height: 36px; padding: 4px 16px; border-radius: 5px;
+  border: 1px solid var(--amber); background: var(--amber-dim); color: var(--text);
+  font-family: var(--font-display); font-weight: 600; font-size: 1rem; letter-spacing: 0.02em;
+}
+.place-check:disabled { opacity: 0.4; border-color: var(--panel-line); background: transparent; }
+.place-pool-head { flex-wrap: wrap; row-gap: 6px; }
+.place-round {
+  min-height: 32px; padding: 2px 8px; border-radius: 4px;
+  border: 1px solid var(--panel-line); background: var(--panel-raised); color: var(--text);
+  font-family: var(--font-body); font-size: 12.5px;
+}
+.place-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.place-actions .next-btn[hidden] { display: none; }
+@media (max-width: 860px) {
+  .place-card .place-actions { flex: 1 1 100%; }
+  .place-pool-head .rail-label { flex: 1 1 auto; }
+  .place-pool-head .place-round { margin-left: auto; }
+}
+
+/* ---------- Place It: a fixed-height card ----------
+   The map sits above this card and is sized from what is left, so if the card
+   grows or shrinks (a longer message wrapping, the Check button appearing) the
+   whole map re-fits and every marker and pin moves under the player's finger.
+   Every line here is therefore one fixed height, and long text is clipped. */
+.place-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; row-gap: 2px; align-items: center; width: 100%; }
+.place-head .card-main { grid-column: 1; min-height: 36px; display: flex; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-head .place-check { grid-column: 2; order: 0; margin: 0; }
+.place-head .place-stats { grid-column: 1 / -1; order: 0; flex: none; min-height: 1.3em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.place-card .feedback-line { min-height: 2.7em; max-height: 2.7em; overflow: hidden; line-height: 1.3; }
+.place-chips { min-height: 52px; }
+.place-actions { min-height: 52px; align-items: center; }
+@media (max-width: 860px) {
+  .place-head .place-stats { font-size: 11.5px; }
+}
+
+/* On a phone the game needs every pixel of height: the footer and credits (about 120px) step aside while
+   playing Place It. The required UNOFFICIAL STUDY TOOL badge stays in the header, and the credits are one
+   tap away in every other mode. Wider screens keep both. */
+@media (max-width: 860px) {
+  .mode-place .statusbar, .mode-place .legal { display: none; }
+}
