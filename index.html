@@ -13,7 +13,7 @@
 <link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css?v=2">
 <script src="embed.js"></script>
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=27">
 </head>
 <body>
 
@@ -42,6 +42,7 @@
         <button class="mode-btn" data-mode="flashcard" role="tab" aria-selected="false">Flashcard</button>
         <button class="mode-btn" data-mode="route" role="tab" aria-selected="false">Route</button>
         <button class="mode-btn" data-mode="blind" role="tab" aria-selected="false">Blind Map</button>
+        <button class="mode-btn" data-mode="place" role="tab" aria-selected="false">Place It</button>
       </div>
       <div class="mode-switch mode-switch--sm" id="routeControls" hidden>
         <button class="mode-btn is-active" data-route="geographic">Geographic</button>
@@ -161,7 +162,8 @@
 
   <script src="data.js?v=12"></script>
   <script src="geometry.js?v=3"></script>
-  <script src="app.js?v=27"></script>
+  <script src="place-logic.js?v=1"></script>
+  <script src="app.js?v=32"></script>
   <script src="list.js?v=2"></script>
   <script src="tabs.js?v=1"></script>
   <script src="sw-register.js?v=1"></script>
