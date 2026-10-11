@@ -98,13 +98,64 @@ function gradeMiles(miles) {
   return "off";
 }
 
+
+// ---------------------------------------------------------------------------
+// Advanced level: "Response Areas". The player drops each number inside the
+// area its station covers (nearest-station zones from the First-Due layer data,
+// an approximation of real first-due boxes). A pin inside its area is "spot";
+// just outside its edge is "close"; further is "off".
+// ---------------------------------------------------------------------------
+
+const AREA_CLOSE_MILES = 0.5;          // outside the area, but this near its edge
+const AREA_STATION_SLACK_MILES = 0.25; // a pin this near the station itself counts as inside its area
+                                       // (the areas are clipped to the city, so a station at the edge,
+                                       // like 27, can sit just outside its own clipped area)
+
+// Even-odd point-in-polygon over a flat list of rings ([[lon,lat],...]); holes and the separate
+// parts of a MultiPolygon both work because every ring flips the answer.
+function pointInRings(lon, lat, rings) {
+  let inside = false;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const [xi, yi] = ring[i], [xj, yj] = ring[j];
+      if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+  }
+  return inside;
+}
+
+// Miles from a point to the nearest edge of the rings; 0 when inside. Local flat-earth maths is fine at
+// city scale.
+function distanceToRingsMiles(lon, lat, rings) {
+  if (pointInRings(lon, lat, rings)) return 0;
+  const kx = 69.17 * Math.cos((lat * Math.PI) / 180), ky = 69.09;
+  let best = Infinity;
+  for (const ring of rings) {
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const ax = (ring[j][0] - lon) * kx, ay = (ring[j][1] - lat) * ky;
+      const bx = (ring[i][0] - lon) * kx, by = (ring[i][1] - lat) * ky;
+      const dx = bx - ax, dy = by - ay, len2 = dx * dx + dy * dy;
+      const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+      best = Math.min(best, Math.hypot(ax + t * dx, ay + t * dy));
+    }
+  }
+  return best;
+}
+
+function gradeAreaMiles(miles) {
+  if (miles <= 0) return "spot";
+  if (miles <= AREA_CLOSE_MILES) return "close";
+  return "off";
+}
+
 // truth: { "26": [lon, lat], ... } for every number that can appear.
 // locked: pins carried over from an earlier check (already good), shown but not in play.
-function createPinGame(numbers, truth, locked) {
+function createPinGame(numbers, truth, locked, areas) {
   return {
     kind: "pins",
     numbers: [...numbers],
     truth,
+    areas: areas || null,         // optional: { num: rings } -- grade by area instead of by distance to the point
     pins: {},                    // num -> [lon, lat], only for numbers still in play
     locked: locked || {},        // num -> [lon, lat]
     selected: null,
@@ -152,6 +203,11 @@ function pinCheck(game, now) {
   const results = game.numbers.map((num) => {
     const [plon, plat] = game.pins[num];
     const [tlon, tlat] = game.truth[num];
+    if (game.areas) {
+      let miles = distanceToRingsMiles(plon, plat, game.areas[num]);
+      if (miles > 0 && distanceMiles(plon, plat, tlon, tlat) <= AREA_STATION_SLACK_MILES) miles = 0;
+      return { num, miles, grade: gradeAreaMiles(miles) };
+    }
     const miles = distanceMiles(plon, plat, tlon, tlat);
     return { num, miles, grade: gradeMiles(miles) };
   });
@@ -171,6 +227,7 @@ function pinSummary(game) {
     spot: count("spot") + lockedCount,    // carried-over pins were good already
     close: count("close"),
     off: count("off"),
+    retry: count("off") + (game.areas ? count("close") : 0),   // how many Retry would bring back
     avgMiles: r.length ? r.reduce((a, x) => a + x.miles, 0) / r.length : 0,
     worst: r.length ? r.reduce((a, x) => (x.miles > a.miles ? x : a)) : null,
     elapsedMs: game.startedAt == null ? 0 : (game.checkedAt != null ? game.checkedAt : game.startedAt) - game.startedAt,
@@ -181,11 +238,19 @@ function pinSummary(game) {
 // A follow-up round with only the numbers that were "off"; the good pins stay put, locked.
 function pinRetryOffs(game) {
   if (!game.results) return null;
-  const offs = game.results.filter((x) => x.grade === "off").map((x) => x.num);
+  // Distance rounds retry only the "off" ones ("close" passed). Area rounds retry everything that isn't
+  // inside its area -- "near" is only partial credit, and the headline counts "in the right area".
+  const needsRetry = (x) => (game.areas ? x.grade !== "spot" : x.grade === "off");
+  const offs = game.results.filter(needsRetry).map((x) => x.num);
   if (!offs.length) return null;
   const locked = { ...game.locked };
-  game.results.filter((x) => x.grade !== "off").forEach((x) => { locked[x.num] = game.pins[x.num]; });
-  return createPinGame(offs, game.truth, locked);
+  game.results.filter((x) => !needsRetry(x)).forEach((x) => { locked[x.num] = game.pins[x.num]; });
+  return createPinGame(offs, game.truth, locked, game.areas);
+}
+
+// Did this graded pin count as right? Distance rounds: within a mile. Area rounds: inside the area.
+function pinCorrect(game, result) {
+  return game.areas ? result.grade === "spot" : result.grade !== "off";
 }
 
 // Better result = more "spot on", then more "close", then lower average miss.
@@ -197,6 +262,7 @@ if (typeof module !== "undefined" && module.exports) {
   module.exports = {
     createPlaceGame, placeAttempt, placeSelect, placeSummary, formatElapsed,
     SPOT_MILES, CLOSE_MILES, distanceMiles, gradeMiles,
-    createPinGame, pinsRemaining, pinPlace, pinLift, pinSelect, pinReady, pinCheck, pinSummary, pinRetryOffs, pinScore,
+    AREA_CLOSE_MILES, AREA_STATION_SLACK_MILES, pointInRings, distanceToRingsMiles, gradeAreaMiles,
+    createPinGame, pinsRemaining, pinPlace, pinLift, pinSelect, pinReady, pinCheck, pinSummary, pinRetryOffs, pinScore, pinCorrect,
   };
 }

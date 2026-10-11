@@ -900,3 +900,11 @@ html.is-embedded .statusbar { display: none; }
 @media (max-width: 860px) {
   .mode-place .statusbar, .mode-place .legal { display: none; }
 }
+
+/* ---------- Place It: advanced ---------- */
+/* Advanced is the bare city outline and rivers: the layer chips (and their sector-lock row) step aside. */
+.level-advanced .layer-bar { display: none; }
+/* Three level buttons + Station list don't fit one phone row, and the list isn't needed mid-game. */
+@media (max-width: 860px) {
+  .mode-place .list-btn { display: none; }
+}

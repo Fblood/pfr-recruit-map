@@ -13,7 +13,7 @@
 <link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css?v=2">
 <script src="embed.js"></script>
-<link rel="stylesheet" href="styles.css?v=33">
+<link rel="stylesheet" href="styles.css?v=34">
 </head>
 <body>
 
@@ -47,6 +47,7 @@
       <div class="mode-switch mode-switch--sm" id="placeControls" role="group" aria-label="Difficulty" hidden>
         <button type="button" class="mode-btn is-active" data-level="beginner" aria-pressed="true">Beginner</button>
         <button type="button" class="mode-btn" data-level="intermediate" aria-pressed="false">Intermediate</button>
+        <button type="button" class="mode-btn" data-level="advanced" aria-pressed="false">Advanced</button>
       </div>
       <div class="mode-switch mode-switch--sm" id="routeControls" hidden>
         <button class="mode-btn is-active" data-route="geographic">Geographic</button>
@@ -137,7 +138,7 @@
     </footer>
     <details class="legal">
       <summary>Credits &amp; licenses</summary>
-      <p>Map data: City of Portland, Oregon public GIS data (boundaries, sectors, neighborhoods, streets, water, hospitals), used under the City&rsquo;s terms of use; provided as-is, with no warranty of accuracy. Station and unit information: Portland Fire &amp; Rescue station list (updated 6/8/26) and portland.gov station pages. Station photos are shown directly from portland.gov and remain &copy; the City of Portland; each links back to its source page. Fonts: Oswald and IBM Plex Sans / Mono, &copy; their authors, under the SIL Open Font License 1.1. This is a student-made study aid and is not affiliated with or endorsed by Portland Fire &amp; Rescue.</p>
+      <p>Map data: City of Portland, Oregon public GIS data (boundaries, sectors, neighborhoods, streets, water, hospitals), used under the City&rsquo;s terms of use; provided as-is, with no warranty of accuracy. Station and unit information: Portland Fire &amp; Rescue station list (updated 6/8/26) and portland.gov station pages. Nearest-station areas (the First-Due layer and the Advanced game) are computed from station locations, not official first-due boundaries. Station photos are shown directly from portland.gov and remain &copy; the City of Portland; each links back to its source page. Fonts: Oswald and IBM Plex Sans / Mono, &copy; their authors, under the SIL Open Font License 1.1. This is a student-made study aid and is not affiliated with or endorsed by Portland Fire &amp; Rescue.</p>
     </details>
 
   </div>
@@ -163,8 +164,8 @@
 
   <script src="data.js?v=12"></script>
   <script src="geometry.js?v=3"></script>
-  <script src="place-logic.js?v=2"></script>
-  <script src="app.js?v=37"></script>
+  <script src="place-logic.js?v=3"></script>
+  <script src="app.js?v=39"></script>
   <script src="list.js?v=2"></script>
   <script src="tabs.js?v=1"></script>
   <script src="sw-register.js?v=1"></script>

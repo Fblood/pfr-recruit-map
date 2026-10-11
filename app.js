@@ -1361,6 +1361,8 @@
   placeMQ.addEventListener("change", () => { if (currentMode === "place") mountPlacePool(); });
 
   function unmountPlace() {
+    stopPlaceTimer();
+    setAdvancedLayers(false);
     if (placeUi) placeUi.pool.remove();
     placeEndDrag();
     place = null;
@@ -1368,12 +1370,15 @@
 
   function startPlace() {
     if (!placeUi) buildPlacePool();
-    placeUi.label.textContent = placeLevel === "intermediate" ? "Numbers" : "Station numbers";
-    placeUi.round.hidden = placeLevel !== "intermediate";
+    const pins = placeLevel !== "beginner";
+    placeUi.label.textContent = pins ? "Numbers" : "Station numbers";
+    placeUi.round.hidden = placeLevel !== "intermediate";   // Advanced is always the whole city
     placeUi.chips.hidden = false;
     placeUi.actions.hidden = true;
     pinDrag = null;
-    if (placeLevel === "intermediate") { startPins(); return; }
+    stopPlaceTimer();
+    setAdvancedLayers(placeLevel === "advanced");
+    if (pins) { startPins(); return; }
     place = createPlaceGame(STATION_NUMBERS);
     placeUi.chips.innerHTML = STATION_NUMBERS
       .map((n) => `<button type="button" class="place-chip" data-num="${n}" aria-pressed="false">${n}</button>`).join("");
@@ -1515,6 +1520,60 @@
 
   let pinDrag = null;   // a pin being moved on the map
 
+  const PAR_MS = 10 * 60 * 1000;   // Advanced par time for all 31
+
+  // Nearest-station areas from the First-Due layer data, keyed by station number.
+  function pinAreas() {
+    const areas = {};
+    D.firstDue.features.forEach((f) => { areas[f.properties.STATION] = ringsOf(f.geometry); });
+    return areas;
+  }
+
+  // Advanced strips the map to the city outline and rivers: reference layers and the chip bar go away,
+  // and come back exactly as the player had them.
+  let savedLayers = null;
+  function applyLayers(next) {
+    Object.assign(layerState, next);
+    document.querySelectorAll("#layerChips button[data-layer]").forEach((b) => b.setAttribute("aria-pressed", String(!!layerState[b.dataset.layer])));
+    updateSectorControlsVisibility();   // also drops any sector lock when Sectors turns off
+  }
+  function setAdvancedLayers(on) {
+    document.body.classList.toggle("level-advanced", on);
+    if (on && !savedLayers) {
+      savedLayers = { ...layerState };
+      applyLayers({ sectors: false, neighborhoods: false, firstDue: false, landmarks: false, water: true, boundary: true });
+    } else if (!on && savedLayers) {
+      applyLayers(savedLayers);
+      savedLayers = null;
+    }
+  }
+
+  // Live clock for Advanced: starts at the first pin, stops at Check. It only rewrites the stats line.
+  let placeTimer = null;
+  function stopPlaceTimer() { if (placeTimer) { clearInterval(placeTimer); placeTimer = null; } }
+  function startPlaceTimer() {
+    stopPlaceTimer();
+    placeTimer = setInterval(() => {
+      if (!isPins() || placeLevel !== "advanced" || place.checkedAt != null) { stopPlaceTimer(); return; }
+      const el = document.getElementById("plStats");
+      if (el) el.textContent = pinsStatsText(pinSummary(place));
+    }, 1000);
+  }
+
+  function pinsStatsText(s) {
+    if (s.checked) {
+      return placeLevel === "advanced"
+        ? `${s.spot} in · ${s.close} near · ${s.off} off · ${formatElapsed(s.elapsedMs)}`
+        : `${s.spot} spot on · ${s.close} close · ${s.off} off · avg ${s.avgMiles.toFixed(1)} mi · ${formatElapsed(s.elapsedMs)}`;
+    }
+    if (placeLevel === "advanced") {
+      const t = place.startedAt == null ? 0 : Date.now() - place.startedAt;
+      return `Advanced · ${s.placed}/${s.inPlay} placed · ${formatElapsed(t)} / par ${formatElapsed(PAR_MS)}`;
+    }
+    const roundName = placeRound === "all" ? "All 31" : `Battalion ${placeRound}`;
+    return `Intermediate · ${roundName} · ${s.placed}/${s.inPlay} pinned`;
+  }
+
   function pinTruth() {
     const t = {};
     STATION_NUMBERS.forEach((n) => { t[n] = STATIONS[n].geometry.coordinates; });
@@ -1528,7 +1587,10 @@
   }
 
   function startPins(carry) {
-    place = carry || createPinGame(roundNumbers(), pinTruth());
+    const adv = placeLevel === "advanced";
+    place = carry || (adv
+      ? createPinGame(STATION_NUMBERS, pinTruth(), null, pinAreas())
+      : createPinGame(roundNumbers(), pinTruth()));
     place.cursor = null;
     placeUi.chips.innerHTML = "";
     syncChips(pinsRemaining(place));
@@ -1537,13 +1599,18 @@
     readoutEl.innerHTML = placeCardHtml();
     document.getElementById("plCheck").addEventListener("click", pinsCheck);
     mountPlacePool();
-    placeLine(carry ? "Retry — your good pins stay put. Place the rest again." : "Tap a number, then tap the map where you think that station is.", "");
+    placeLine(carry
+      ? "Retry — your good pins stay put. Place the rest again."
+      : adv
+        ? "Tap a number, then tap its area. Areas = nearest-station zones."
+        : "Tap a number, then tap the map where you think that station is.", "");
+    if (adv) startPlaceTimer();
     pinsRefresh();
     // A battalion round opens framed on that battalion's area (that is what the round teaches, and at
     // full-city zoom "spot on" would be a few pixels -- too fine for a fingertip). Retries keep your view.
     if (!carry) {
       resetView();
-      if (placeRound !== "all") {
+      if (!adv && placeRound !== "all") {
         const game = place;   // the canvas re-fits a frame after the card swaps in; frame once it has its final size
         requestAnimationFrame(() => requestAnimationFrame(() => {
           if (place !== game) return;
@@ -1572,24 +1639,22 @@
     const s = pinSummary(place);
     const prompt = document.getElementById("plPrompt");
     const check = document.getElementById("plCheck");
-    const roundName = placeRound === "all" ? "All 31" : `Battalion ${placeRound}`;
+    const adv = placeLevel === "advanced";
     if (s.checked) {
-      prompt.textContent = `${s.spot + s.close} of ${s.total} within a mile`;
+      prompt.textContent = adv ? `${s.spot} of ${s.total} in the right area` : `${s.spot + s.close} of ${s.total} within a mile`;
       check.hidden = true;
     } else if (pinReady(place)) {
-      prompt.textContent = "All pinned — check when ready";
+      prompt.textContent = adv ? "All placed — check when ready" : "All pinned — check when ready";
     } else if (place.selected) {
-      prompt.textContent = `Station ${place.selected} — tap the map where it is`;
+      prompt.textContent = adv ? `Station ${place.selected} — tap inside its area` : `Station ${place.selected} — tap the map where it is`;
     } else {
-      prompt.textContent = "Pick a number, then tap the map";
+      prompt.textContent = adv ? "Pick a number, then tap its area" : "Pick a number, then tap the map";
     }
     if (!s.checked) {
       check.hidden = false;
       check.disabled = !pinReady(place);
     }
-    document.getElementById("plStats").textContent = s.checked
-      ? `${s.spot} spot on · ${s.close} close · ${s.off} off · avg ${s.avgMiles.toFixed(1)} mi · ${formatElapsed(s.elapsedMs)}`
-      : `Intermediate · ${roundName} · ${s.placed}/${s.inPlay} pinned`;
+    document.getElementById("plStats").textContent = pinsStatsText(s);
     placeUi.left.textContent = s.checked ? "" : `${s.inPlay - s.placed} left`;
     syncChips(pinsRemaining(place));
     placeUi.chips.querySelectorAll(".place-chip").forEach((c) => {
@@ -1600,8 +1665,8 @@
     placeUi.empty.hidden = true;
     placeUi.chips.hidden = s.checked;            // the buttons take the strip's place: same height, so the map doesn't resize
     placeUi.actions.hidden = !s.checked;
-    placeUi.retry.hidden = !(s.checked && s.off > 0);
-    placeUi.retry.textContent = `Retry misses (${s.off})`;
+    placeUi.retry.hidden = !(s.checked && s.retry > 0);
+    placeUi.retry.textContent = `Retry misses (${s.retry})`;
   }
 
   function pinAt(sx, sy, tol) {
@@ -1619,8 +1684,8 @@
     if (!pinPlace(place, num, lon, lat, Date.now())) return;
     place.cursor = null;
     placeLine(pinReady(place)
-      ? "All pinned. Drag a pin to adjust it, or press Check."
-      : `Station ${num} pinned. Drag a pin to move it, tap a pin to pick it up.`, "ok");
+      ? (placeLevel === "advanced" ? "All placed. Drag a pin to adjust it, or press Check." : "All pinned. Drag a pin to adjust it, or press Check.")
+      : `Station ${num} ${placeLevel === "advanced" ? "placed" : "pinned"}. Drag a pin to move it, tap a pin to pick it up.`, "ok");
     pinsRefresh();
     render();
   }
@@ -1673,7 +1738,7 @@
   // --- Check, retry, personal best ---
   function pinsBest(sum) {
     if (Object.keys(place.locked).length) return null;           // retry rounds don't set records
-    const key = "int-" + placeRound;
+    const key = placeLevel === "advanced" ? "adv-all" : "int-" + placeRound;
     let all = {};
     try { all = JSON.parse(localStorage.getItem("pfrmdt_place_best") || "{}") || {}; } catch (e) { all = {}; }
     const prev = all[key];
@@ -1688,15 +1753,23 @@
   function pinsCheck() {
     const results = pinCheck(place, Date.now());
     if (!results) return;
-    results.forEach((r) => recordAnswer(r.grade !== "off", r.num));
+    stopPlaceTimer();
+    results.forEach((r) => recordAnswer(pinCorrect(place, r), r.num));
     const s = pinSummary(place);
     const best = pinsBest(s);
-    let msg = s.worst && s.worst.miles > CLOSE_MILES
-      ? `Furthest off: Station ${s.worst.num}, ${s.worst.miles.toFixed(1)} mi.`
-      : "Every pin was within a mile.";
-    if (best && best.better && !best.prev) msg += " First score for this round saved.";
+    const adv = placeLevel === "advanced";
+    // Two lines is all the card has room for (a fixed height keeps the map from resizing), so these are short.
+    let msg = adv
+      ? (s.worst && s.worst.miles > 0
+        ? `Furthest out: Station ${s.worst.num}, ${s.worst.miles.toFixed(1)} mi from its area.`
+        : "Every pin was inside its area.")
+      : (s.worst && s.worst.miles > CLOSE_MILES
+        ? `Furthest off: Station ${s.worst.num}, ${s.worst.miles.toFixed(1)} mi.`
+        : "Every pin was within a mile.");
+    if (adv && !Object.keys(place.locked).length) msg += s.elapsedMs <= PAR_MS ? " Under par." : " Over par.";
+    if (best && best.better && !best.prev) msg += adv ? " Saved." : " First score for this round saved.";
     else if (best && best.better) msg += " New personal best!";
-    else if (best && best.prev) msg += ` Best so far: ${best.prev.spot} spot on, ${best.prev.close} close.`;
+    else if (best && best.prev) msg += adv ? ` Best: ${best.prev.spot} in.` : ` Best so far: ${best.prev.spot} spot on, ${best.prev.close} close.`;
     place.selected = null;
     placeLine(msg, s.off === 0 ? "ok" : "bad");
     pinsRefresh();
@@ -1726,9 +1799,27 @@
   }
 
   function drawPinBoard() {
+    if (place.areas && place.checkedAt != null) {       // reveal: every station's area, tinted by how the player did
+      const tint = { spot: "63,190,114", close: "255,200,87", off: "232,80,63" };
+      const grades = {};
+      place.results.forEach((r) => { grades[r.num] = r.grade; });
+      Object.keys(place.locked).forEach((n) => { grades[n] = "spot"; });
+      D.firstDue.features.forEach((f) => {
+        const g = grades[f.properties.STATION];
+        if (!g) return;
+        ringsOf(f.geometry).forEach((ring) => {
+          ctx.beginPath();
+          ring.forEach(([lon, lat], i) => { const { x, y } = toScreen(lon, lat); if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y); });
+          ctx.closePath();
+          ctx.fillStyle = `rgba(${tint[g]},0.14)`; ctx.fill();
+          ctx.strokeStyle = `rgba(${tint[g]},0.7)`; ctx.lineWidth = 1.2; ctx.stroke();
+        });
+      });
+    }
     Object.entries(place.locked).forEach(([num, [lon, lat]]) => drawPin(num, lon, lat, PIN_COLORS.spot));
     if (place.checkedAt != null) {
       place.results.forEach((r) => {
+        if (place.areas && r.grade === "spot") { drawPointMarker(place.truth[r.num][0], place.truth[r.num][1], "house", "#FFFFFF", 6); return; }
         const [tlon, tlat] = place.truth[r.num];
         const [plon, plat] = place.pins[r.num];
         const a = toScreen(plon, plat), b = toScreen(tlon, tlat);
