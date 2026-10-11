@@ -13,7 +13,7 @@
 <link rel="preload" href="fonts/oswald.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="fonts/fonts.css?v=2">
 <script src="embed.js"></script>
-<link rel="stylesheet" href="styles.css?v=27">
+<link rel="stylesheet" href="styles.css?v=33">
 </head>
 <body>
 
@@ -44,6 +44,10 @@
         <button class="mode-btn" data-mode="blind" role="tab" aria-selected="false">Blind Map</button>
         <button class="mode-btn" data-mode="place" role="tab" aria-selected="false">Place It</button>
       </div>
+      <div class="mode-switch mode-switch--sm" id="placeControls" role="group" aria-label="Difficulty" hidden>
+        <button type="button" class="mode-btn is-active" data-level="beginner" aria-pressed="true">Beginner</button>
+        <button type="button" class="mode-btn" data-level="intermediate" aria-pressed="false">Intermediate</button>
+      </div>
       <div class="mode-switch mode-switch--sm" id="routeControls" hidden>
         <button class="mode-btn is-active" data-route="geographic">Geographic</button>
         <button class="mode-btn" data-route="numeric">Numeric</button>
@@ -70,9 +74,6 @@
             <button type="button" class="layer-chip" data-layer="neighborhoods" aria-pressed="false" style="--c:#8C96C8"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/></svg><span>Neighborhoods</span></button>
             <button type="button" class="layer-chip" data-layer="firstDue" aria-pressed="false" style="--c:#8A6FBE"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7.5 4.5v9L12 21l-7.5-4.5v-9z"/><path d="M12 12l7.5-4.5M12 12v9M12 12L4.5 7.5"/></svg><span>First-Due</span></button>
             <button type="button" class="layer-chip" data-layer="landmarks" aria-pressed="false" style="--c:#E85EA0"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M12 8v8M8 12h8"/></svg><span>Hospitals</span></button>
-            <button type="button" class="layer-chip" data-layer="fdc" aria-pressed="false" style="--c:#1A9CA6"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="6" y="8" width="12" height="8" rx="1.5"/><path d="M2 12h4M18 12h4M10 8V5M14 8V5"/></svg><span>FDC</span></button>
-            <button type="button" class="layer-chip" data-layer="lockedGates" aria-pressed="false" style="--c:#FFA82E"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg><span>Locked Gates</span></button>
-            <button type="button" class="layer-chip" data-layer="blockedStreets" aria-pressed="false" style="--c:#D6451E"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8.5"/><path d="M7.5 12h9"/></svg><span>Blocked Streets</span></button>
           </div>
           <div class="layer-sub" id="sectorLockControls" hidden>
             <label class="toggle-switch" id="lockToSectorLabel">
@@ -162,8 +163,8 @@
 
   <script src="data.js?v=12"></script>
   <script src="geometry.js?v=3"></script>
-  <script src="place-logic.js?v=1"></script>
-  <script src="app.js?v=32"></script>
+  <script src="place-logic.js?v=2"></script>
+  <script src="app.js?v=37"></script>
   <script src="list.js?v=2"></script>
   <script src="tabs.js?v=1"></script>
   <script src="sw-register.js?v=1"></script>
