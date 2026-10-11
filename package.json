@@ -2,6 +2,6 @@
   "name": "pfr-recruit-map-webapp",
   "private": true,
   "scripts": {
-    "test": "node geometry.test.js && node place-logic.test.js"
+    "test": "node geometry.test.js && node place-logic.test.js && node place-data.test.js"
   }
 }

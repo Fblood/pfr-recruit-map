@@ -2,7 +2,8 @@ const assert = require("node:assert");
 const {
   createPlaceGame, placeAttempt, placeSelect, placeSummary, formatElapsed,
   SPOT_MILES, CLOSE_MILES, distanceMiles, gradeMiles,
-  createPinGame, pinsRemaining, pinPlace, pinLift, pinSelect, pinReady, pinCheck, pinSummary, pinRetryOffs, pinScore,
+  AREA_CLOSE_MILES, AREA_STATION_SLACK_MILES, pointInRings, distanceToRingsMiles, gradeAreaMiles,
+  createPinGame, pinsRemaining, pinPlace, pinLift, pinSelect, pinReady, pinCheck, pinSummary, pinRetryOffs, pinScore, pinCorrect,
 } = require("./place-logic.js");
 
 const nums = ["1", "2", "3", "4"];
@@ -184,5 +185,86 @@ Object.entries(realTruth).forEach(([n, [lo, la]]) => pinPlace(full, n, lo, la, 5
 pinCheck(full, 10);
 assert.deepStrictEqual({ spot: pinSummary(full).spot, off: pinSummary(full).off, total: pinSummary(full).total }, { spot: 31, off: 0, total: 31 });
 console.log("PASS: a full 31-pin round can be perfect");
+
+
+// =====================  Advanced: Response Areas  =====================
+
+// AREA 0.1 x 0.1 degree square (about 4.8 x 6.9 miles) and a bigger one with a hole in the middle.
+const sq = (lon, lat, size) => [[lon, lat], [lon + size, lat], [lon + size, lat + size], [lon, lat + size], [lon, lat]];
+const AREA = [sq(-122.6, 45.5, 0.1)];
+const mi = (m) => m / 69.09;   // miles of latitude -> degrees
+
+assert.ok(pointInRings(-122.55, 45.55, AREA));
+assert.ok(!pointInRings(-122.7, 45.55, AREA));
+assert.ok(!pointInRings(-122.55, 45.7, AREA));
+console.log("PASS: point-in-area inside/outside");
+
+// holes and multi-part areas (a MultiPolygon is just more rings)
+const donut = [sq(-122.6, 45.5, 0.1), sq(-122.57, 45.53, 0.04)];
+assert.ok(pointInRings(-122.59, 45.51, donut), "in the ring of the donut");
+assert.ok(!pointInRings(-122.55, 45.55, donut), "inside the hole is outside the area");
+const twoParts = [sq(-122.6, 45.5, 0.05), sq(-122.4, 45.5, 0.05)];
+assert.ok(pointInRings(-122.575, 45.525, twoParts) && pointInRings(-122.375, 45.525, twoParts));
+assert.ok(!pointInRings(-122.5, 45.525, twoParts), "the gap between the parts is outside");
+console.log("PASS: holes and multi-part areas");
+
+// distance to the edge: 0 inside, otherwise the gap in miles
+assert.strictEqual(distanceToRingsMiles(-122.55, 45.55, AREA), 0);
+assert.ok(Math.abs(distanceToRingsMiles(-122.55, 45.6 + mi(0.3), AREA) - 0.3) < 0.01, "0.3 mi north of the north edge");
+assert.ok(Math.abs(distanceToRingsMiles(-122.55, 45.5 - mi(2), AREA) - 2) < 0.02, "2 mi south of the south edge");
+const corner = distanceToRingsMiles(-122.6 - mi(0.3) / 0.7, 45.5 - mi(0.4), AREA);   // off the SW corner: 3-4-5 triangle (x scaled by cos lat)
+assert.ok(Math.abs(corner - 0.5) < 0.02, "distance to a corner is the straight-line distance");
+console.log("PASS: distance to an area's edge");
+
+// grade bands for areas, including the exact boundary
+assert.strictEqual(gradeAreaMiles(0), "spot");
+assert.strictEqual(gradeAreaMiles(0.001), "close");
+assert.strictEqual(gradeAreaMiles(AREA_CLOSE_MILES), "close");
+assert.strictEqual(gradeAreaMiles(AREA_CLOSE_MILES + 0.001), "off");
+console.log("PASS: area grade bands");
+
+// a full area-graded round: in, just outside, far outside
+const stationPt = { "1": [-122.55, 45.55], "2": [-122.55, 45.55], "3": [-122.55, 45.55] };
+const areas = { "1": AREA, "2": AREA, "3": AREA };
+let ag = createPinGame(["1", "2", "3"], stationPt, null, areas);
+pinPlace(ag, "1", -122.57, 45.52, 0);                       // inside
+pinPlace(ag, "2", -122.55, 45.6 + mi(0.3), 0);               // 0.3 mi outside the edge
+pinPlace(ag, "3", -122.55, 45.6 + mi(3), 0);                 // 3 mi outside
+const ar = pinCheck(ag, 1);
+assert.deepStrictEqual(ar.map((r) => r.grade), ["spot", "close", "off"]);
+const asum = pinSummary(ag);
+assert.deepStrictEqual({ spot: asum.spot, close: asum.close, off: asum.off }, { spot: 1, close: 1, off: 1 });
+console.log("PASS: a round graded by area");
+
+// retry keeps grading by area, and brings back everything not inside its area ("near" included)
+assert.strictEqual(asum.retry, 2, "summary counts the near and the off pins as retries");
+const ar2 = pinRetryOffs(ag);
+assert.ok(ar2.areas, "the retry round still has its areas");
+assert.deepStrictEqual(ar2.numbers, ["2", "3"], "area rounds retry near AND off");
+assert.deepStrictEqual(Object.keys(ar2.locked), ["1"]);
+pinPlace(ar2, "2", -122.58, 45.53, 0);
+pinPlace(ar2, "3", -122.58, 45.54, 0);
+assert.ok(pinCheck(ar2, 2).every((r) => r.grade === "spot"));
+assert.strictEqual(pinSummary(ar2).spot, 3, "the locked pin still counts");
+console.log("PASS: retry rounds stay area-graded and retry everything outside its area");
+
+// distance rounds are unchanged: only "off" is retried, and close still counts as correct
+assert.strictEqual(pinSummary(pg).retry, 1, "distance round: only the off pin is retried");
+assert.ok(pinCorrect(pg, { grade: "close" }), "distance round: close counts as correct");
+assert.ok(!pinCorrect(ag, { grade: "close" }), "area round: only inside the area counts as correct");
+assert.ok(pinCorrect(ag, { grade: "spot" }));
+console.log("PASS: what counts as correct depends on the round type");
+
+// a station at the city edge can sit just outside its own clipped area (Station 27): pins right on the
+// station still count as inside, but a pin merely near the station's neighborhood does not get a free pass
+const edgeStation = { "27": [-122.6 - mi(0.1) / 0.7, 45.55] };   // ~0.1 mi west of the area's west edge
+let eg = createPinGame(["27"], edgeStation, null, { "27": AREA });
+pinPlace(eg, "27", ...edgeStation["27"], 0);
+assert.strictEqual(pinCheck(eg, 1)[0].grade, "spot", "a pin on the station itself is inside its area");
+let eg2 = createPinGame(["27"], edgeStation, null, { "27": AREA });
+pinPlace(eg2, "27", -122.6 - mi(0.4) / 0.7, 45.55, 0);           // 0.4 mi from the edge, 0.3 mi from the station
+assert.strictEqual(pinCheck(eg2, 1)[0].grade, "close", "outside the slack: graded by distance to the edge");
+assert.ok(AREA_STATION_SLACK_MILES < AREA_CLOSE_MILES);
+console.log("PASS: a station at the city edge isn't marked wrong for being on itself");
 
 console.log("\nAll place-game checks passed.");
